@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/entities", label: "Entities" },
   { href: "/publications", label: "Publications" },
   { href: "/health", label: "Health" },
+  { href: "/brief", label: "Briefs" },
   { href: "/chat", label: "Chat" },
 ];
 

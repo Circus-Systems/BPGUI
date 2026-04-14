@@ -22,6 +22,28 @@ export const VERTICAL_SOURCES: Record<VerticalCode, readonly string[]> = {
   pharmacy: ["ajp", "pharmacy-daily"],
 } as const;
 
+/** BPG-owned publications (as opposed to competitor titles) */
+export const BPG_SOURCES: readonly string[] = [
+  "travel-daily",
+  "cruise-weekly",
+  "pharmacy-daily",
+  "travel-bulletin",
+  "latte",
+] as const;
+
+/** Competitor publications (everything we track that isn't BPG) */
+export const COMPETITOR_SOURCES: readonly string[] = [
+  "karryon",
+  "travel-weekly",
+  "traveltalk",
+  "travel-monitor",
+  "travel-today-nz",
+  "global-travel-media",
+  "cruise-industry-news",
+  "seatrade-rss",
+  "ajp",
+] as const;
+
 /** Human-readable labels for each source_id */
 export const SOURCE_LABELS: Record<string, string> = {
   "travel-weekly": "Travel Weekly",
