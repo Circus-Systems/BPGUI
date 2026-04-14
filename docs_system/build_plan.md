@@ -34,3 +34,10 @@ Two UI verticals that group the 13 underlying publications:
 
 - URL: `https://bqfhxzgcogczdmoqyywc.supabase.co`
 - Auth user: `admin@bpg.com.au`
+
+## Deployment
+
+- **GitHub**: https://github.com/Circus-Systems/BPGUI
+- **Vercel**: https://bpgui.vercel.app (production)
+- Auto-deploys on push to `main`
+- Env vars configured on Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `SKIP_MFA`
