@@ -162,7 +162,11 @@ export default function PublicationsPage() {
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {stats.map((stat) => (
-                  <PublicationCard key={stat.source_id} stat={stat} />
+                  <PublicationCard
+                    key={stat.source_id}
+                    stat={stat}
+                    days={parseInt(days, 10)}
+                  />
                 ))}
               </div>
             </div>
