@@ -46,6 +46,14 @@ const TYPE_OPTIONS = [
   { value: "industry_body", label: "Industry Body" },
 ];
 
+const DATE_OPTIONS = [
+  { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+  { value: "all", label: "All time" },
+  { value: "custom", label: "Custom" },
+];
+
 export default function EntitiesPage() {
   const { vertical } = useVertical();
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -58,6 +66,9 @@ export default function EntitiesPage() {
   // Filters
   const [entityType, setEntityType] = useState("all");
   const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState("30d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -87,8 +98,13 @@ export default function EntitiesPage() {
         offset: String(offset),
         limit: String(PAGE_SIZE),
         type: entityType,
+        dateRange,
       });
       if (debouncedSearch) params.set("search", debouncedSearch);
+      if (dateRange === "custom") {
+        if (customFrom) params.set("from", customFrom);
+        if (customTo) params.set("to", customTo);
+      }
 
       try {
         const res = await fetch(`/api/entities?${params}`);
@@ -109,7 +125,7 @@ export default function EntitiesPage() {
         setLoadingMore(false);
       }
     },
-    [vertical, debouncedSearch, entityType]
+    [vertical, debouncedSearch, entityType, dateRange, customFrom, customTo]
   );
 
   // Refetch when filters change
@@ -126,7 +142,11 @@ export default function EntitiesPage() {
       return;
     }
     setDetailLoading(true);
-    const params = new URLSearchParams({ vertical });
+    const params = new URLSearchParams({ vertical, dateRange });
+    if (dateRange === "custom") {
+      if (customFrom) params.set("from", customFrom);
+      if (customTo) params.set("to", customTo);
+    }
     fetch(`/api/entities/${encodeURIComponent(selectedEntity)}?${params}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to fetch entity detail");
@@ -135,7 +155,7 @@ export default function EntitiesPage() {
       .then((data) => setDetailData(data))
       .catch(() => setDetailData(null))
       .finally(() => setDetailLoading(false));
-  }, [selectedEntity, vertical]);
+  }, [selectedEntity, vertical, dateRange, customFrom, customTo]);
 
   function handleLoadMore() {
     fetchEntities(entities.length, true);
@@ -154,28 +174,66 @@ export default function EntitiesPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search entities..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent w-64"
-          />
-          <div className="flex gap-1">
-            {TYPE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setEntityType(opt.value)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  entityType === opt.value
-                    ? "bg-accent text-white"
-                    : "bg-surface text-muted hover:text-foreground"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search entities..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent w-64"
+            />
+            <div className="flex gap-1">
+              {TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setEntityType(opt.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    entityType === opt.value
+                      ? "bg-accent text-white"
+                      : "bg-surface text-muted hover:text-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-medium text-muted">Date range:</span>
+            <div className="flex gap-1">
+              {DATE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setDateRange(opt.value)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    dateRange === opt.value
+                      ? "bg-accent text-white"
+                      : "bg-surface text-muted hover:text-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {dateRange === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="rounded-lg border border-border bg-white px-2 py-1 text-xs text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <span className="text-xs text-muted">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="rounded-lg border border-border bg-white px-2 py-1 text-xs text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+              </div>
+            )}
           </div>
         </div>
 

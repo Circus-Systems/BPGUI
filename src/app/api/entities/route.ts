@@ -10,9 +10,24 @@ export async function GET(request: NextRequest) {
   const search = params.get("search") || "";
   const limit = Math.min(parseInt(params.get("limit") || "50", 10), 200);
   const offset = parseInt(params.get("offset") || "0", 10);
+  const dateRange = params.get("dateRange") || "30d";
+  const fromParam = params.get("from");
+  const toParam = params.get("to");
 
   const sources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
   const supabase = await createClient();
+
+  // Compute date window
+  let fromIso: string | null = null;
+  let toIso: string | null = null;
+  if (dateRange === "custom" && fromParam) {
+    fromIso = new Date(fromParam).toISOString();
+    if (toParam) toIso = new Date(toParam).toISOString();
+  } else if (dateRange !== "all") {
+    const dayMap: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
+    const days = dayMap[dateRange] ?? 30;
+    fromIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  }
 
   // Use RPC or raw query via Supabase — aggregation with GROUP BY
   // Since Supabase JS client doesn't support GROUP BY, we query raw entities
@@ -29,6 +44,9 @@ export async function GET(request: NextRequest) {
   if (search) {
     query = query.ilike("entity_name", `%${search}%`);
   }
+
+  if (fromIso) query = query.gte("published_at_ts", fromIso);
+  if (toIso) query = query.lte("published_at_ts", toIso);
 
   // Fetch all matching entities for aggregation (limited to avoid huge payloads)
   const { data: rows, error } = await query.limit(10000);
