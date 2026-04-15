@@ -28,26 +28,31 @@ export function ArticleDetail({
   onClose: () => void;
 }) {
   const [full, setFull] = useState<ArticleDetailSeed>(article);
+  const [entities, setEntities] = useState<
+    Array<{ entity_name: string; entity_type: string; mention_count: number; in_title: number }>
+  >([]);
   const [loadingFull, setLoadingFull] = useState(false);
 
   useEffect(() => {
     setFull(article);
-    if (!article.content_text && !article.content_html) {
-      let cancelled = false;
-      setLoadingFull(true);
-      fetch(`/api/articles/${article.id}`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (!cancelled && d.article) setFull(d.article);
-        })
-        .catch(() => {})
-        .finally(() => {
-          if (!cancelled) setLoadingFull(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
+    setEntities([]);
+    let cancelled = false;
+    const needsContent = !article.content_text && !article.content_html;
+    if (needsContent) setLoadingFull(true);
+    fetch(`/api/articles/${article.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        if (d.article) setFull(d.article);
+        if (Array.isArray(d.entities)) setEntities(d.entities);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingFull(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [article]);
 
   useEffect(() => {
@@ -136,6 +141,49 @@ export function ArticleDetail({
               ))}
             </div>
           )}
+
+          {entities.length > 0 && (() => {
+            const byType = new Map<string, typeof entities>();
+            for (const e of entities) {
+              const bucket = byType.get(e.entity_type) || [];
+              bucket.push(e);
+              byType.set(e.entity_type, bucket);
+            }
+            const TYPE_LABEL: Record<string, string> = {
+              company: "Companies",
+              destination: "Destinations",
+              industry_body: "Industry bodies",
+              person: "People",
+              event: "Events",
+            };
+            const TYPE_CLASS: Record<string, string> = {
+              company: "bg-accent/10 text-accent",
+              destination: "bg-increase/10 text-increase",
+              industry_body: "bg-removed/10 text-removed",
+              person: "bg-surface text-foreground",
+              event: "bg-amber-100 text-amber-700",
+            };
+            return (
+              <div className="space-y-2">
+                {[...byType.entries()].map(([type, list]) => (
+                  <div key={type} className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-muted">
+                      {TYPE_LABEL[type] || type.replace("_", " ")}:
+                    </span>
+                    {list.map((e) => (
+                      <span
+                        key={`${type}-${e.entity_name}`}
+                        title={`${e.mention_count} mention${e.mention_count === 1 ? "" : "s"}${e.in_title ? " (in title)" : ""}`}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_CLASS[type] || "bg-surface text-foreground"}`}
+                      >
+                        {e.entity_name}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {tags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">

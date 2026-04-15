@@ -27,5 +27,13 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ article: data });
+  // Tagged entities extracted from this article
+  const { data: entityRows } = await supabase
+    .from("article_entities")
+    .select("entity_name, entity_type, mention_count, in_title")
+    .eq("source_id", data.source_id)
+    .eq("external_id", data.external_id)
+    .order("mention_count", { ascending: false });
+
+  return NextResponse.json({ article: data, entities: entityRows || [] });
 }
