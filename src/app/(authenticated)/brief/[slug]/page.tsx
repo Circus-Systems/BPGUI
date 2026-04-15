@@ -31,22 +31,66 @@ export default function BriefPage({
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     setLoading(true);
-    fetch(
-      `/api/brand/${encodeURIComponent(slug)}/coverage?name=${encodeURIComponent(brandName)}&period=${period}`
-    )
-      .then((r) => r.json())
-      .then((d) => {
+    setError(null);
+    setCoverage(null);
+
+    async function load(attempt: number) {
+      try {
+        const r = await fetch(
+          `/api/brand/${encodeURIComponent(slug)}/coverage?name=${encodeURIComponent(brandName)}&period=${period}`
+        );
+        const d = await r.json();
+        if (!r.ok || d?.error || !d?.summary) {
+          // Retry once on transient Supabase timeouts.
+          if (attempt < 1) {
+            return load(attempt + 1);
+          }
+          setError(d?.error || `HTTP ${r.status}`);
+          setLoading(false);
+          return;
+        }
         setCoverage(d);
         setLoading(false);
-      });
+      } catch (e) {
+        if (attempt < 1) return load(attempt + 1);
+        setError(e instanceof Error ? e.message : String(e));
+        setLoading(false);
+      }
+    }
+    load(0);
   }, [slug, brandName, period]);
 
-  if (loading || !coverage) {
+  if (loading) {
     return (
       <div className="mx-auto max-w-7xl p-6">
         <p className="text-sm text-muted">Generating brief for {brandName}…</p>
+      </div>
+    );
+  }
+
+  if (error || !coverage) {
+    return (
+      <div className="mx-auto max-w-7xl p-6">
+        <h1 className="text-xl font-semibold text-foreground">
+          AdvertiserBrief · {brandName}
+        </h1>
+        <p className="mt-4 text-sm text-red-700">
+          Couldn&apos;t generate the brief. {error || "No data returned."}
+        </p>
+        <p className="mt-2 text-xs text-muted">
+          This usually means the coverage query hit Supabase&apos;s statement timeout.
+          Try a shorter period or reload.
+        </p>
+        <button
+          onClick={() => location.reload()}
+          className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Reload
+        </button>
       </div>
     );
   }
