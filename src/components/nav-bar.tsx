@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/health", label: "Health" },
   { href: "/brief", label: "Briefs" },
   { href: "/chat", label: "Chat" },
+  { href: "/admin", label: "Admin" },
 ];
 
 export function NavBar({ displayName }: { displayName: string | null }) {

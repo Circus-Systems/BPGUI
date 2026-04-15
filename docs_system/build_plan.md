@@ -19,7 +19,7 @@ Phases 1–6 delivered a competitive-intelligence dashboard. Phases 7+ extend th
 | 7 | Data Foundation & Story Clustering | **Complete** | Schema for journalists/events/spend/survey/AVE; cross-publication story clustering |
 | 8 | Brand Coverage API | **Complete** | Per-advertiser aggregation, unique coverage detection, AVE calculation |
 | 9 | AdvertiserBrief UI | **Complete** | Deck preview, slide components, PDF export |
-| 10 | Admin Uploaders | Pending | Journalist / events / spend / survey management UIs |
+| 10 | Admin Uploaders | **Complete** | Journalist / events / spend / survey management UIs |
 | 11 | Archive Chatbot | Pending | RAG over historical Travel Daily content for journalists |
 
 ## Verticals
