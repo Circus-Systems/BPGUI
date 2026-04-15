@@ -142,7 +142,13 @@ export function EntityDetail({
           Recent Articles ({data.articles.length})
         </h3>
         <div className="space-y-2">
-          {data.articles.map((article) => (
+          {[...data.articles]
+            .sort((a, b) => {
+              const ta = a.published_at ? new Date(a.published_at).getTime() : 0;
+              const tb = b.published_at ? new Date(b.published_at).getTime() : 0;
+              return tb - ta;
+            })
+            .map((article) => (
             <a
               key={`${article.source_id}-${article.external_id}`}
               href={article.url}

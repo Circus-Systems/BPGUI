@@ -55,7 +55,7 @@ export async function GET(
       .from("articles")
       .select("source_id, external_id, title, url, published_at, author_name")
       .or(orFilter)
-      .order("published_at", { ascending: false })
+      .order("published_at", { ascending: false, nullsFirst: false })
       .limit(50);
 
     articles = articleData || [];
