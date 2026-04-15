@@ -75,7 +75,7 @@ export default function BriefPage({
             <option value={1825}>Last 5 years</option>
             <option value={10000}>All-time</option>
           </select>
-          <PrintButton />
+          <PrintButton slug={slug} brandName={brandName} period={period} />
         </div>
       </div>
 
