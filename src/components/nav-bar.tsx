@@ -6,14 +6,10 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Briefing" },
   { href: "/articles", label: "Articles" },
   { href: "/entities", label: "Entities" },
   { href: "/publications", label: "Publications" },
-  { href: "/health", label: "Health" },
   { href: "/brief", label: "Briefs" },
-  { href: "/chat", label: "Chat" },
-  { href: "/admin", label: "Admin" },
 ];
 
 export function NavBar({ displayName }: { displayName: string | null }) {
