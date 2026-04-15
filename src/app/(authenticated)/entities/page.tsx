@@ -4,6 +4,7 @@ import { useVertical } from "@/hooks/use-vertical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EntityTable } from "@/components/entities/entity-table";
 import { EntityDetail } from "@/components/entities/entity-detail";
+import { VERTICAL_SOURCES, SOURCE_LABELS } from "@/lib/constants";
 
 interface Entity {
   entity_name: string;
@@ -65,6 +66,7 @@ export default function EntitiesPage() {
 
   // Filters
   const [entityType, setEntityType] = useState("all");
+  const [source, setSource] = useState("all");
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
@@ -76,6 +78,11 @@ export default function EntitiesPage() {
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [detailData, setDetailData] = useState<EntityDetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Reset source filter when vertical changes (source list differs per vertical)
+  useEffect(() => {
+    setSource("all");
+  }, [vertical]);
 
   // Debounce search
   useEffect(() => {
@@ -99,6 +106,7 @@ export default function EntitiesPage() {
         limit: String(PAGE_SIZE),
         type: entityType,
         dateRange,
+        source,
       });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (dateRange === "custom") {
@@ -125,7 +133,7 @@ export default function EntitiesPage() {
         setLoadingMore(false);
       }
     },
-    [vertical, debouncedSearch, entityType, dateRange, customFrom, customTo]
+    [vertical, debouncedSearch, entityType, source, dateRange, customFrom, customTo]
   );
 
   // Refetch when filters change
@@ -142,7 +150,7 @@ export default function EntitiesPage() {
       return;
     }
     setDetailLoading(true);
-    const params = new URLSearchParams({ vertical, dateRange });
+    const params = new URLSearchParams({ vertical, dateRange, source });
     if (dateRange === "custom") {
       if (customFrom) params.set("from", customFrom);
       if (customTo) params.set("to", customTo);
@@ -155,7 +163,7 @@ export default function EntitiesPage() {
       .then((data) => setDetailData(data))
       .catch(() => setDetailData(null))
       .finally(() => setDetailLoading(false));
-  }, [selectedEntity, vertical, dateRange, customFrom, customTo]);
+  }, [selectedEntity, vertical, source, dateRange, customFrom, customTo]);
 
   function handleLoadMore() {
     fetchEntities(entities.length, true);
@@ -198,6 +206,18 @@ export default function EntitiesPage() {
                 </button>
               ))}
             </div>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            >
+              <option value="all">All publications</option>
+              {(VERTICAL_SOURCES[vertical] || []).map((sid) => (
+                <option key={sid} value={sid}>
+                  {SOURCE_LABELS[sid] || sid}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

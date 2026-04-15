@@ -13,8 +13,13 @@ export async function GET(request: NextRequest) {
   const dateRange = params.get("dateRange") || "30d";
   const fromParam = params.get("from");
   const toParam = params.get("to");
+  const sourceFilter = params.get("source") || "all";
 
-  const sources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
+  const verticalSources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
+  const sources =
+    sourceFilter !== "all" && verticalSources.includes(sourceFilter)
+      ? [sourceFilter]
+      : verticalSources;
   const supabase = await createClient();
 
   // Compute date window

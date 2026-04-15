@@ -14,7 +14,12 @@ export async function GET(
   const dateRange = searchParams.get("dateRange") || "30d";
   const fromParam = searchParams.get("from");
   const toParam = searchParams.get("to");
-  const sources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
+  const sourceFilter = searchParams.get("source") || "all";
+  const verticalSources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
+  const sources =
+    sourceFilter !== "all" && verticalSources.includes(sourceFilter)
+      ? [sourceFilter]
+      : verticalSources;
 
   let fromIso: string | null = null;
   let toIso: string | null = null;
