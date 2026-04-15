@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import { SOURCE_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
 
-interface Article {
+export interface ArticleDetailSeed {
   id: number;
-  source_id: string;
-  title: string;
-  url: string;
-  excerpt: string | null;
-  author_name: string | null;
-  published_at: string | null;
-  word_count: number | null;
-  is_sponsored: number;
-  categories: string | null;
+  source_id?: string;
+  title?: string;
+  url?: string;
+  excerpt?: string | null;
+  author_name?: string | null;
+  published_at?: string | null;
+  word_count?: number | null;
+  is_sponsored?: number;
+  categories?: string | null;
   tags?: string | null;
   content_text?: string | null;
   content_html?: string | null;
@@ -24,16 +24,14 @@ export function ArticleDetail({
   article,
   onClose,
 }: {
-  article: Article;
+  article: ArticleDetailSeed;
   onClose: () => void;
 }) {
-  const sourceLabel = SOURCE_LABELS[article.source_id] || article.source_id;
-  const [full, setFull] = useState<Article>(article);
+  const [full, setFull] = useState<ArticleDetailSeed>(article);
   const [loadingFull, setLoadingFull] = useState(false);
 
   useEffect(() => {
     setFull(article);
-    // If we don't already have the full body, fetch it
     if (!article.content_text && !article.content_html) {
       let cancelled = false;
       setLoadingFull(true);
@@ -52,7 +50,6 @@ export function ArticleDetail({
     }
   }, [article]);
 
-  // Escape key to close
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -60,6 +57,10 @@ export function ArticleDetail({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const sourceLabel = full.source_id
+    ? SOURCE_LABELS[full.source_id] || full.source_id
+    : "";
 
   const tags = (full.tags || "")
     .split(",")
@@ -72,10 +73,8 @@ export function ArticleDetail({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-end">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
 
-      {/* Panel */}
       <div className="relative h-full w-full max-w-2xl overflow-y-auto bg-white shadow-xl">
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-white px-6 py-4">
           <h2 className="text-sm font-medium text-muted">{sourceLabel}</h2>
@@ -101,9 +100,11 @@ export function ArticleDetail({
         </div>
 
         <div className="px-6 py-6 space-y-4">
-          <h1 className="text-xl font-semibold text-foreground">
-            {full.title}
-          </h1>
+          {full.title && (
+            <h1 className="text-xl font-semibold text-foreground">
+              {full.title}
+            </h1>
+          )}
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
             {full.author_name && (
@@ -150,14 +151,16 @@ export function ArticleDetail({
             </div>
           )}
 
-          <a
-            href={full.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block text-sm text-accent hover:text-accent-dark transition-colors"
-          >
-            View original article &rarr;
-          </a>
+          {full.url && (
+            <a
+              href={full.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block text-sm text-accent hover:text-accent-dark transition-colors"
+            >
+              View original article &rarr;
+            </a>
+          )}
 
           <div className="border-t border-border pt-4">
             {loadingFull && (
@@ -197,14 +200,16 @@ export function ArticleDetail({
               !full.excerpt && (
                 <p className="text-sm text-muted">
                   No full content stored for this article.{" "}
-                  <a
-                    href={full.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:text-accent-dark"
-                  >
-                    View original &rarr;
-                  </a>
+                  {full.url && (
+                    <a
+                      href={full.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent hover:text-accent-dark"
+                    >
+                      View original &rarr;
+                    </a>
+                  )}
                 </p>
               )}
           </div>

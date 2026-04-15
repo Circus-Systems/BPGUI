@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
 import { formatRelativeTime } from "@/lib/format";
+import { ArticleDetail, type ArticleDetailSeed } from "@/components/articles/article-detail";
 
 interface EntityDetailData {
   entity_name: string;
@@ -9,6 +11,7 @@ interface EntityDetailData {
   article_count: number;
   total_mentions: number;
   articles: Array<{
+    id: number;
     source_id: string;
     external_id: string;
     title: string;
@@ -37,6 +40,8 @@ export function EntityDetail({
   data: EntityDetailData | null;
   loading: boolean;
 }) {
+  const [selected, setSelected] = useState<ArticleDetailSeed | null>(null);
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -149,12 +154,11 @@ export function EntityDetail({
               return tb - ta;
             })
             .map((article) => (
-            <a
+            <button
               key={`${article.source_id}-${article.external_id}`}
-              href={article.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg p-2 hover:bg-surface transition-colors"
+              type="button"
+              onClick={() => setSelected(article)}
+              className="block w-full text-left rounded-lg p-2 hover:bg-surface transition-colors"
             >
               <p className="text-sm text-foreground line-clamp-1">
                 {article.title}
@@ -165,10 +169,14 @@ export function EntityDetail({
                   <span>{formatRelativeTime(article.published_at)}</span>
                 )}
               </div>
-            </a>
+            </button>
           ))}
         </div>
       </div>
+
+      {selected && (
+        <ArticleDetail article={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }

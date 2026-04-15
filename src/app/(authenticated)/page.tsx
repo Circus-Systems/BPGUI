@@ -19,6 +19,7 @@ interface BriefingData {
     article_count: number;
   }[];
   highlights: {
+    id: number;
     source_id: string;
     title: string;
     url: string;

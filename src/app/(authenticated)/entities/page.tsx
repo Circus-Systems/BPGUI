@@ -21,6 +21,7 @@ interface EntityDetailData {
   article_count: number;
   total_mentions: number;
   articles: Array<{
+    id: number;
     source_id: string;
     external_id: string;
     title: string;

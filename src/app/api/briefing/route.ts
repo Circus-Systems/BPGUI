@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // Recent notable articles (last 24h, ordered by published_at)
     supabase
       .from("articles")
-      .select("source_id, external_id, title, url, author_name, published_at, word_count, is_sponsored, excerpt")
+      .select("id, source_id, external_id, title, url, author_name, published_at, word_count, is_sponsored, excerpt")
       .in("source_id", [...sources])
       .gte("published_at", oneDayAgo.toISOString())
       .order("published_at", { ascending: false })

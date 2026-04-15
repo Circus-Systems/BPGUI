@@ -34,6 +34,7 @@ export async function GET(
   // Use OR filter for up to 50 articles
   const articlePairs = uniqueKeys.slice(0, 50);
   let articles: Array<{
+    id: number;
     source_id: string;
     external_id: string;
     title: string;
@@ -53,7 +54,7 @@ export async function GET(
 
     const { data: articleData } = await supabase
       .from("articles")
-      .select("source_id, external_id, title, url, published_at, author_name")
+      .select("id, source_id, external_id, title, url, published_at, author_name")
       .or(orFilter)
       .order("published_at", { ascending: false, nullsFirst: false })
       .limit(50);
