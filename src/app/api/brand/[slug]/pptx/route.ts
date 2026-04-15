@@ -63,6 +63,12 @@ interface Coverage {
   };
 }
 
+interface RosterRow {
+  source_id: string;
+  author_name: string;
+  article_count: number;
+}
+
 const AUD = new Intl.NumberFormat("en-AU", {
   style: "currency",
   currency: "AUD",
@@ -102,7 +108,16 @@ export async function GET(
   }
 
   const coverage = data as Coverage;
-  const pptx = buildDeck(coverage);
+
+  // Fetch the newsroom roster in parallel-ish so the Team slide can show real names.
+  const { data: rosterData } = await supabase.rpc("bpg_newsroom_roster", {
+    p_sources: [...BPG_SOURCES],
+    p_per_source: 6,
+    p_since_days: 3650,
+  });
+  const roster = (rosterData || []) as RosterRow[];
+
+  const pptx = buildDeck(coverage, roster);
   const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
 
   const safeBrand = coverage.brand.replace(/[^A-Za-z0-9_-]+/g, "_");
@@ -119,7 +134,7 @@ export async function GET(
   });
 }
 
-function buildDeck(c: Coverage): PptxGenJS {
+function buildDeck(c: Coverage, roster: RosterRow[]): PptxGenJS {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE"; // 13.333 x 7.5"
   pptx.title = `AdvertiserBrief — ${c.brand}`;
@@ -127,7 +142,7 @@ function buildDeck(c: Coverage): PptxGenJS {
   pptx.company = "BPG";
 
   slideTitle(pptx, c);
-  slideTeam(pptx, c);
+  slideTeam(pptx, roster);
   slideActivity(pptx, c);
   slideAuthority(pptx);
   slideBrandSupport(pptx, c);
@@ -182,21 +197,20 @@ function slideTitle(pptx: PptxGenJS, c: Coverage) {
   });
 }
 
-function slideTeam(pptx: PptxGenJS, c: Coverage) {
+function slideTeam(pptx: PptxGenJS, roster: RosterRow[]) {
   const s = pptx.addSlide();
-  addHeader(s, 2, "Our editorial team", "BPG journalists covering your category");
+  addHeader(s, 2, "Our editorial team", "Journalists across the BPG newsroom");
 
-  // Group journalists by source, fall back to placeholder per BPG source
-  const bySrc = new Map<string, typeof c.journalists>();
-  for (const j of c.journalists || []) {
-    const arr = bySrc.get(j.source_id) || [];
-    arr.push(j);
-    bySrc.set(j.source_id, arr);
+  const bySrc = new Map<string, RosterRow[]>();
+  for (const r of roster) {
+    const arr = bySrc.get(r.source_id) || [];
+    arr.push(r);
+    bySrc.set(r.source_id, arr);
   }
 
   const cols = 2;
   const cellW = 6;
-  const cellH = 1.1;
+  const cellH = 1.4;
   BPG_SOURCES.forEach((src, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -207,13 +221,18 @@ function slideTeam(pptx: PptxGenJS, c: Coverage) {
       fill: { color: "FFFFFF" },
       line: { color: "E5E7EB", width: 1 },
     });
-    s.addText(label(src), { x: x + 0.2, y: y + 0.15, w: cellW - 0.4, h: 0.3, fontSize: 12, bold: true, color: TEXT });
-    const names = (bySrc.get(src) || []).slice(0, 3)
-      .map((j) => `${j.author_name} (${j.article_count})`).join(" · ");
-    s.addText(
-      names || "Journalist roster populates from admin uploader.",
-      { x: x + 0.2, y: y + 0.5, w: cellW - 0.4, h: 0.5, fontSize: 10, color: MUTED },
-    );
+    s.addText(label(src), {
+      x: x + 0.2, y: y + 0.15, w: cellW - 0.4, h: 0.3,
+      fontSize: 12, bold: true, color: TEXT,
+    });
+    const people = bySrc.get(src) || [];
+    const names = people.length
+      ? people.slice(0, 6).map((p) => `${p.author_name}  (${p.article_count})`).join("   •   ")
+      : "Byline data not yet captured for this publication.";
+    s.addText(names, {
+      x: x + 0.2, y: y + 0.55, w: cellW - 0.4, h: cellH - 0.7,
+      fontSize: 10, color: people.length ? TEXT : MUTED, valign: "top",
+    });
   });
 }
 
@@ -306,7 +325,7 @@ function slideClippings(pptx: PptxGenJS, c: Coverage) {
   for (const a of (c.top_articles || []).slice(0, 8)) {
     rows.push([
       { text: label(a.source_id), options: { fontSize: 9 } },
-      { text: a.title, options: { fontSize: 9, hyperlink: { url: a.url } } },
+      { text: a.title, options: { fontSize: 9 } },
       { text: new Date(a.published_at).toLocaleDateString("en-AU"), options: { fontSize: 9 } },
       { text: String(a.word_count), options: { fontSize: 9 } },
       { text: String(a.mention_count), options: { fontSize: 9 } },

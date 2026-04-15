@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -133,20 +134,50 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+type RosterRow = { source_id: string; author_name: string; article_count: number };
+
 export function TeamSlide() {
-  // Journalists roster is still empty until Phase 10 uploader lands.
-  // Render a placeholder grouped by publication.
+  const [roster, setRoster] = useState<RosterRow[]>([]);
+  useEffect(() => {
+    fetch("/api/newsroom")
+      .then((r) => r.json())
+      .then((d) => setRoster(d.roster || []))
+      .catch(() => setRoster([]));
+  }, []);
+
+  const bySrc = new Map<string, RosterRow[]>();
+  for (const r of roster) {
+    const arr = bySrc.get(r.source_id) || [];
+    arr.push(r);
+    bySrc.set(r.source_id, arr);
+  }
+
   return (
-    <SlideShell number={2} title="Our editorial team" subtitle="BPG journalists covering your category">
+    <SlideShell number={2} title="Our editorial team" subtitle="Journalists across the BPG newsroom">
       <div className="grid grid-cols-2 gap-4">
-        {BPG_SOURCES.map((src) => (
-          <div key={src} className="rounded-md border border-border p-4">
-            <p className="text-sm font-medium">{SOURCE_LABELS[src] || src}</p>
-            <p className="text-xs text-muted mt-1">
-              Journalist roster loads from admin uploader (Phase 10).
-            </p>
-          </div>
-        ))}
+        {BPG_SOURCES.map((src) => {
+          const people = bySrc.get(src) || [];
+          return (
+            <div key={src} className="rounded-md border border-border p-4">
+              <p className="text-sm font-medium">{SOURCE_LABELS[src] || src}</p>
+              {people.length > 0 ? (
+                <p className="text-xs text-foreground mt-2 leading-relaxed">
+                  {people.slice(0, 6).map((p, i) => (
+                    <span key={p.author_name}>
+                      {i > 0 ? "  •  " : ""}
+                      <span className="font-medium">{p.author_name}</span>
+                      <span className="text-muted"> ({p.article_count})</span>
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p className="text-xs text-muted mt-2">
+                  Byline data not yet captured for this publication.
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </SlideShell>
   );
