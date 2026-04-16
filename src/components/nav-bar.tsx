@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/entities", label: "Entities" },
   { href: "/publications", label: "Publications" },
   { href: "/brief", label: "Briefs" },
+  { href: "/generator", label: "Generator" },
 ];
 
 export function NavBar({ displayName }: { displayName: string | null }) {
