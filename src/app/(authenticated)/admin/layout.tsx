@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { createClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/admin";
 
 const TABS = [
   { href: "/admin", label: "Overview" },
@@ -10,7 +12,16 @@ const TABS = [
   { href: "/admin/ave-rates", label: "AVE rates" },
 ];
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const tabs = isAdminEmail(user?.email)
+    ? [...TABS, { href: "/admin/activity", label: "Activity" }]
+    : TABS;
+
   return (
     <div className="mx-auto max-w-7xl p-6">
       <div className="mb-6">
@@ -20,7 +31,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </p>
       </div>
       <nav className="mb-6 flex flex-wrap gap-1 border-b border-border">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <Link
             key={t.href}
             href={t.href}
