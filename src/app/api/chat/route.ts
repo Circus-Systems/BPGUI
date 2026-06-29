@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { CHAT_TOOLS } from "@/lib/chat-tools";
 import { validateSQL, injectLimit } from "@/lib/sql-guardrails";
 import { NextResponse, type NextRequest } from "next/server";
@@ -141,7 +141,11 @@ async function executeTool(
       }
 
       const safeSql = injectLimit(sql);
-      const supabase = await createClient();
+      // Server-only service-role client: execute_raw_sql EXECUTE is restricted
+      // to service_role, so the public anon/authenticated REST surface can't
+      // invoke this SECURITY DEFINER function directly. validateSQL/injectLimit
+      // above remain the content guardrail for the chat tool.
+      const supabase = createServiceClient();
 
       try {
         const { data, error } = await supabase.rpc("execute_raw_sql", {
