@@ -1,470 +1,921 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  ScatterChart,
-  Scatter,
-  LineChart,
-  Line,
+  PieChart,
+  Pie,
 } from "recharts";
-import { SOURCE_LABELS, SOURCE_COLORS, BPG_SOURCES } from "@/lib/constants";
 import { SlideShell } from "./slide-shell";
+import { RecommendationsEditor } from "./recommendations-editor";
+import {
+  AUD,
+  AUDIENCE_SEGMENTS,
+  CONTENTS_ITEMS,
+  LOOKING_AHEAD_ITEMS,
+  READERSHIP_QUOTES,
+  READERSHIP_SOURCE_NOTE,
+  READERSHIP_STATS,
+  coverageVolumeRows,
+  formatAudCompact,
+  formatPromoBand,
+  insertionTotals,
+  mediaCompetitorSet,
+  promoFootnote,
+  sourceLabel,
+  sovChartsBySource,
+  uniqueCoverageAllZero,
+  type BriefDeckData,
+} from "@/lib/brief-deck";
 
-type Coverage = {
-  brand: string;
-  period_days: number;
-  generated_at: string;
-  summary: {
-    total_articles: number;
-    total_words: number;
-    avg_words: number;
-    sponsored_count: number;
-    bpg_articles: number;
-    competitor_articles: number;
-  };
-  by_publication: Array<{
-    source_id: string;
-    article_count: number;
-    total_words: number;
-    sponsored_count: number;
-    is_bpg: boolean;
-  }>;
-  unique_coverage: Array<{
-    id: number;
-    canonical_title: string;
-    first_published_at: string;
-    article_count: number;
-    sources: string[];
-  }>;
-  shared_coverage_count: number;
-  missed_coverage: Array<{
-    id: number;
-    canonical_title: string;
-    first_published_at: string;
-    article_count: number;
-    sources: string[];
-  }>;
-  first_to_publish: {
-    bpg_first: number;
-    competitor_first: number;
-    total_shared: number;
-  };
-  timeline: Array<{ week: string; source_id: string; articles: number }>;
-  top_articles: Array<{
-    source_id: string;
-    external_id: string;
-    title: string;
-    url: string;
-    published_at: string;
-    word_count: number;
-    author_name: string | null;
-    mention_count: number;
-    in_title: number;
-  }>;
-  journalists: Array<{
-    author_name: string;
-    source_id: string;
-    article_count: number;
-  }>;
-  events: Array<{
-    event_name: string;
-    event_date: string;
-    source_id: string;
-    attended_by: string | null;
-  }>;
-  spend_vs_coverage: Array<{
-    source_id: string;
-    spend_aud: number;
-    article_count: number;
-  }>;
-  ave: {
-    article_ave: number;
-    total_articles: number;
-    by_source: Array<{
-      source_id: string;
-      articles: number;
-      ave_aud: number;
-    }>;
-  };
-};
+/**
+ * 20-slide Key Partner Annual Meeting web preview.
+ * All data comes from GET /api/brief/deck (assembleBriefData), the same
+ * assembly used by the PPTX export, so preview and deck cannot drift.
+ */
 
-const AUD = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  maximumFractionDigits: 0,
-});
+const PIE_COLORS = [
+  "#2563EB", "#7C3AED", "#0891B2", "#D97706", "#059669", "#DC2626",
+  "#4F46E5", "#0D9488", "#9333EA", "#CA8A04", "#6B7280",
+];
 
-export function TitleSlide({ coverage }: { coverage: Coverage }) {
+function Pending({ text }: { text: string }) {
+  return (
+    <div className="rounded-md bg-surface border border-border px-4 py-3">
+      <p className="text-sm text-muted italic">{text}</p>
+    </div>
+  );
+}
+
+function PromoFootnote({ hostTitle }: { hostTitle: string }) {
+  return (
+    <p className="mt-3 text-[10px] text-muted italic">{promoFootnote(hostTitle)}</p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S1 — Title
+// ---------------------------------------------------------------------------
+
+export function S1TitleSlide({ data }: { data: BriefDeckData }) {
   return (
     <section className="brief-slide break-after-page bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] text-white rounded-lg p-12 mb-6 print:rounded-none print:min-h-[210mm] print:flex print:flex-col print:justify-center">
-      <div className="text-xs uppercase tracking-widest opacity-70">
-        Annual Meeting
+      <div className="text-xs uppercase tracking-widest text-blue-300 font-semibold">
+        {data.host.title_name}
       </div>
-      <h1 className="text-4xl font-semibold mt-3">{coverage.brand}</h1>
-      <div className="mt-8 space-y-1 text-sm opacity-80">
-        <p>Last {coverage.period_days} days</p>
-        <p>
-          Prepared {new Date(coverage.generated_at).toLocaleDateString("en-AU")} by
-          Business Publishing Group
-        </p>
-      </div>
-      <div className="mt-12 grid grid-cols-3 gap-6 text-sm">
-        <Stat label="Total articles" value={coverage.summary.total_articles} />
-        <Stat label="BPG coverage" value={coverage.summary.bpg_articles} />
-        <Stat label="AVE delivered" value={AUD.format(coverage.ave.article_ave || 0)} />
+      <h1 className="text-4xl font-semibold mt-3">Key Partner Annual Meeting</h1>
+      <p className="text-2xl mt-3 opacity-90">{data.brand}</p>
+      <p className="mt-6 text-sm opacity-70">
+        Last {data.period_days} days · Prepared{" "}
+        {new Date(data.generated_at).toLocaleDateString("en-AU")} by Business
+        Publishing Group
+      </p>
+      <div className="mt-12 inline-flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-slate-400/60 text-xs italic text-slate-400">
+        Partner logo
       </div>
     </section>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+// ---------------------------------------------------------------------------
+// S2 — Contents
+// ---------------------------------------------------------------------------
+
+export function S2ContentsSlide() {
   return (
-    <div>
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="opacity-70 text-xs uppercase tracking-wide mt-1">{label}</div>
-    </div>
-  );
-}
-
-type RosterRow = { source_id: string; author_name: string; article_count: number };
-
-export function TeamSlide() {
-  const [roster, setRoster] = useState<RosterRow[]>([]);
-  useEffect(() => {
-    fetch("/api/newsroom")
-      .then((r) => r.json())
-      .then((d) => setRoster(d.roster || []))
-      .catch(() => setRoster([]));
-  }, []);
-
-  const bySrc = new Map<string, RosterRow[]>();
-  for (const r of roster) {
-    const arr = bySrc.get(r.source_id) || [];
-    arr.push(r);
-    bySrc.set(r.source_id, arr);
-  }
-
-  return (
-    <SlideShell number={2} title="Our editorial team" subtitle="Journalists across the BPG newsroom">
-      <div className="grid grid-cols-2 gap-4">
-        {BPG_SOURCES.map((src) => {
-          const people = bySrc.get(src) || [];
-          return (
-            <div key={src} className="rounded-md border border-border p-4">
-              <p className="text-sm font-medium">{SOURCE_LABELS[src] || src}</p>
-              {people.length > 0 ? (
-                <p className="text-xs text-foreground mt-2 leading-relaxed">
-                  {people.slice(0, 6).map((p, i) => (
-                    <span key={p.author_name}>
-                      {i > 0 ? "  •  " : ""}
-                      <span className="font-medium">{p.author_name}</span>
-                      <span className="text-muted"> ({p.article_count})</span>
-                    </span>
-                  ))}
-                </p>
-              ) : (
-                <p className="text-xs text-muted mt-2">
-                  Byline data not yet captured for this publication.
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+    <SlideShell number={2} title="Contents">
+      <ol className="space-y-3 max-w-xl">
+        {CONTENTS_ITEMS.map((item, i) => (
+          <li
+            key={item}
+            className="flex items-center gap-4 rounded-md bg-surface border border-border px-4 py-3"
+          >
+            <span className="text-xl font-semibold text-accent">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <span className="text-base font-medium text-foreground">{item}</span>
+          </li>
+        ))}
+      </ol>
     </SlideShell>
   );
 }
 
-export function ActivitySlide({ coverage }: { coverage: Coverage }) {
-  // Group by publication for a comparison chart
-  const data = coverage.by_publication.map((p) => ({
-    name: SOURCE_LABELS[p.source_id] || p.source_id,
-    articles: p.article_count,
-    words: Math.round(p.total_words / 1000),
-    group: p.is_bpg ? "BPG" : "Competitor",
-  }));
+// ---------------------------------------------------------------------------
+// S3 — Readership
+// ---------------------------------------------------------------------------
 
+export function S3ReadershipSlide({ data }: { data: BriefDeckData }) {
   return (
     <SlideShell
       number={3}
-      title="Editorial activity"
-      subtitle={`Articles mentioning ${coverage.brand} — last ${coverage.period_days} days`}
+      title="Readership"
+      subtitle={`${data.host.title_name} audience reach`}
     >
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="articles" name="Articles" fill="#2563EB" />
-          <Bar dataKey="words" name="Thousand words" fill="#7C3AED" />
-        </BarChart>
+      <div className="grid grid-cols-3 gap-4">
+        {READERSHIP_STATS.map((s) => (
+          <div key={s.label} className="rounded-md bg-surface border border-border p-4">
+            <div className="text-3xl font-semibold text-accent">{s.value}</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-foreground mt-2">
+              {s.label}
+            </div>
+            <div className="text-xs text-muted mt-1">{s.detail}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 space-y-2">
+        {READERSHIP_QUOTES.map((q) => (
+          <p key={q} className="text-lg italic text-foreground">
+            &ldquo;{q}&rdquo;
+          </p>
+        ))}
+      </div>
+      <p className="mt-6 text-[10px] text-muted italic">{READERSHIP_SOURCE_NOTE}</p>
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S4 — Audience
+// ---------------------------------------------------------------------------
+
+export function S4AudienceSlide() {
+  const segments = AUDIENCE_SEGMENTS.map((s) => ({ ...s }));
+  return (
+    <SlideShell
+      number={4}
+      title="Our audience"
+      subtitle="Subscriber composition (publisher-supplied)"
+    >
+      <ResponsiveContainer width="100%" height={340}>
+        <PieChart>
+          <Pie
+            data={segments}
+            dataKey="pct"
+            nameKey="name"
+            cx="40%"
+            cy="50%"
+            outerRadius={130}
+          >
+            {segments.map((s, i) => (
+              <Cell key={s.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v) => `${v}%`} />
+          <Legend
+            layout="vertical"
+            align="right"
+            verticalAlign="middle"
+            wrapperStyle={{ fontSize: 12 }}
+            formatter={(value) => {
+              const seg = AUDIENCE_SEGMENTS.find((s) => s.name === value);
+              return `${value} — ${seg?.pct ?? ""}%`;
+            }}
+          />
+        </PieChart>
       </ResponsiveContainer>
     </SlideShell>
   );
 }
 
-export function AuthoritySlide() {
-  return (
-    <SlideShell number={4} title="Reader authority" subtitle="From BPG reader surveys">
-      <p className="text-sm text-muted">
-        Survey results load from admin uploader (Phase 10). This slide will render:
-        &quot;most respected&quot; and &quot;most authoritative&quot; bars per publication.
-      </p>
-    </SlideShell>
-  );
-}
+// ---------------------------------------------------------------------------
+// S5 — Editorial team
+// ---------------------------------------------------------------------------
 
-export function BrandSupportSlide({ coverage }: { coverage: Coverage }) {
-  const aveData = (coverage.ave.by_source || []).map((b) => ({
-    name: SOURCE_LABELS[b.source_id] || b.source_id,
-    ave: b.ave_aud,
-    articles: b.articles,
-  }));
-
+export function S5TeamSlide({ data }: { data: BriefDeckData }) {
+  const note =
+    data.teamSource === "roster"
+      ? "Derived from published bylines."
+      : data.teamSource === "fallback"
+        ? "Publisher-supplied roster."
+        : null;
   return (
     <SlideShell
       number={5}
-      title="Support for your brand"
-      subtitle={`Ad-value-equivalency: ${AUD.format(coverage.ave.article_ave || 0)} across BPG`}
+      title="Our editorial team"
+      subtitle={`The ${data.host.title_name} newsroom`}
     >
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={aveData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${Math.round(v / 1000)}k`} />
-          <Tooltip formatter={(v) => AUD.format(Number(v))} />
-          <Bar dataKey="ave" name="AVE (AUD)" fill="#059669" />
-        </BarChart>
-      </ResponsiveContainer>
-    </SlideShell>
-  );
-}
-
-export function ClippingsSlide({ coverage }: { coverage: Coverage }) {
-  return (
-    <SlideShell number={6} title="Example clippings" subtitle="Top BPG articles mentioning your brand">
-      <div className="space-y-3">
-        {coverage.top_articles.slice(0, 6).map((a) => (
-          <a
-            key={`${a.source_id}-${a.external_id}`}
-            href={a.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block rounded-md border border-border p-3 hover:border-accent"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">{a.title}</p>
-                <p className="text-xs text-muted mt-1">
-                  {SOURCE_LABELS[a.source_id] || a.source_id} ·{" "}
-                  {new Date(a.published_at).toLocaleDateString("en-AU")} ·{" "}
-                  {a.word_count} words
-                  {a.author_name ? ` · ${a.author_name}` : ""}
-                </p>
-              </div>
-              <span
-                className="rounded-full px-2 py-0.5 text-xs text-white"
-                style={{ backgroundColor: SOURCE_COLORS[a.source_id] || "#6b7280" }}
-              >
-                {a.mention_count}x
-              </span>
-            </div>
-          </a>
-        ))}
-        {coverage.top_articles.length === 0 && (
-          <p className="text-sm text-muted">No articles in selected period.</p>
-        )}
-      </div>
-    </SlideShell>
-  );
-}
-
-export function PeopleSlide({ coverage }: { coverage: Coverage }) {
-  return (
-    <SlideShell number={7} title="People who supported your brand" subtitle="BPG journalists">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {coverage.journalists.slice(0, 12).map((j) => (
-          <div
-            key={`${j.author_name}-${j.source_id}`}
-            className="rounded-md border border-border p-3"
-          >
-            <div
-              className="h-12 w-12 rounded-full flex items-center justify-center text-white font-semibold text-sm mb-2"
-              style={{ backgroundColor: SOURCE_COLORS[j.source_id] || "#6b7280" }}
-            >
-              {j.author_name
-                .split(" ")
-                .slice(0, 2)
-                .map((p) => p[0])
-                .join("")
-                .toUpperCase()}
-            </div>
-            <p className="text-sm font-medium">{j.author_name}</p>
-            <p className="text-xs text-muted">
-              {SOURCE_LABELS[j.source_id] || j.source_id} · {j.article_count} articles
-            </p>
-          </div>
-        ))}
-        {coverage.journalists.length === 0 && (
-          <p className="text-sm text-muted col-span-full">
-            Author attribution will populate as collectors tag journalists.
-          </p>
-        )}
-      </div>
-    </SlideShell>
-  );
-}
-
-export function UniqueCoverageSlide({ coverage }: { coverage: Coverage }) {
-  return (
-    <SlideShell
-      number={8}
-      title="Unique coverage"
-      subtitle={`Stories only BPG ran — ${coverage.unique_coverage.length} in last ${coverage.period_days} days`}
-    >
-      <div className="grid grid-cols-4 gap-4 mb-4 text-center">
-        <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{coverage.unique_coverage.length}</div>
-          <div className="text-xs text-muted mt-1">BPG-only</div>
-        </div>
-        <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{coverage.shared_coverage_count}</div>
-          <div className="text-xs text-muted mt-1">Shared</div>
-        </div>
-        <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{coverage.missed_coverage.length}</div>
-          <div className="text-xs text-muted mt-1">Missed (competitor only)</div>
-        </div>
-        <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">
-            {coverage.first_to_publish.total_shared > 0
-              ? Math.round(
-                  (coverage.first_to_publish.bpg_first /
-                    coverage.first_to_publish.total_shared) *
-                    100
-                )
-              : 0}
-            %
-          </div>
-          <div className="text-xs text-muted mt-1">BPG-first rate</div>
-        </div>
-      </div>
-      <ul className="space-y-2 text-sm">
-        {coverage.unique_coverage.slice(0, 10).map((c) => (
-          <li key={c.id} className="border-l-2 border-accent pl-3">
-            <p className="font-medium">{c.canonical_title}</p>
-            <p className="text-xs text-muted">
-              {new Date(c.first_published_at).toLocaleDateString("en-AU")} ·{" "}
-              {c.sources.join(", ")}
-            </p>
-          </li>
-        ))}
-      </ul>
-    </SlideShell>
-  );
-}
-
-export function SpendScatterSlide({ coverage }: { coverage: Coverage }) {
-  const data = coverage.spend_vs_coverage.map((s) => ({
-    name: SOURCE_LABELS[s.source_id] || s.source_id,
-    x: Number(s.spend_aud),
-    y: s.article_count,
-  }));
-
-  return (
-    <SlideShell
-      number={9}
-      title="Spend vs coverage"
-      subtitle="Your advertising spend relative to editorial mentions (per publication)"
-    >
-      <ResponsiveContainer width="100%" height={300}>
-        <ScatterChart>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis
-            type="number"
-            dataKey="x"
-            name="Spend"
-            tick={{ fontSize: 11 }}
-            tickFormatter={(v) => `$${Math.round(v / 1000)}k`}
-          />
-          <YAxis type="number" dataKey="y" name="Articles" tick={{ fontSize: 11 }} />
-          <Tooltip
-            content={({ payload }) => {
-              if (!payload || !payload[0]) return null;
-              const p = payload[0].payload as { name: string; x: number; y: number };
-              return (
-                <div className="rounded border border-border bg-white p-2 text-xs">
-                  <div className="font-medium">{p.name}</div>
-                  <div>Spend: {AUD.format(p.x)}</div>
-                  <div>Articles: {p.y}</div>
+      {data.team.length === 0 ? (
+        <Pending text="Editorial roster pending — supply via Admin > Journalists." />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {data.team.slice(0, 12).map((m) => (
+              <div key={m.name} className="rounded-md border border-border p-3">
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm mb-2"
+                  style={{ backgroundColor: "#1e3a5f" }}
+                >
+                  {m.name
+                    .split(" ")
+                    .slice(0, 2)
+                    .map((p) => p[0])
+                    .join("")
+                    .toUpperCase()}
                 </div>
-              );
-            }}
-          />
-          <Scatter data={data} fill="#2563EB" />
-        </ScatterChart>
-      </ResponsiveContainer>
-      {data.every((d) => d.x === 0) && (
-        <p className="text-xs text-muted mt-2">
-          No spend data yet — uploads via admin UI (Phase 10) populate this chart.
-        </p>
+                <p className="text-sm font-medium text-foreground">{m.name}</p>
+                <p className="text-xs text-muted mt-0.5">{m.role}</p>
+              </div>
+            ))}
+          </div>
+          {note && <p className="mt-3 text-[10px] text-muted italic">{note}</p>}
+        </>
       )}
     </SlideShell>
   );
 }
 
-export function TimelineSlide({ coverage }: { coverage: Coverage }) {
-  // Pivot timeline: one line per source
-  const bySource = new Map<string, Array<{ week: string; articles: number }>>();
-  const allWeeks = new Set<string>();
-  for (const row of coverage.timeline) {
-    allWeeks.add(row.week);
-    const arr = bySource.get(row.source_id) || [];
-    arr.push({ week: row.week, articles: row.articles });
-    bySource.set(row.source_id, arr);
-  }
-  const weeks = Array.from(allWeeks).sort();
-  const rows = weeks.map((w) => {
-    const entry: Record<string, string | number> = { week: w };
-    for (const [src, arr] of bySource) {
-      const hit = arr.find((r) => r.week === w);
-      entry[src] = hit ? hit.articles : 0;
-    }
-    return entry;
-  });
+// ---------------------------------------------------------------------------
+// S6 — Respected
+// ---------------------------------------------------------------------------
+
+export function S6RespectedSlide() {
+  return (
+    <SlideShell number={6} title="Respected across the industry" subtitle="What partners say">
+      <div className="grid grid-cols-2 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="rounded-md bg-surface border border-dashed border-border p-6 min-h-[110px]"
+          >
+            <div className="text-2xl text-slate-300 font-semibold leading-none">&ldquo;&nbsp;&rdquo;</div>
+            <p className="mt-3 text-sm italic text-muted">Testimonial — TD to supply</p>
+          </div>
+        ))}
+      </div>
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S7 — Content volume
+// ---------------------------------------------------------------------------
+
+export function S7ContentVolumeSlide({ data }: { data: BriefDeckData }) {
+  const set = mediaCompetitorSet(data.host);
+  const byId = new Map(data.contentVolume.map((p) => [p.source_id, p]));
+  const rows = set.map((src) => ({
+    name: sourceLabel(src),
+    articles: byId.get(src)?.article_count || 0,
+    isHost: src === data.host.primary_source,
+  }));
 
   return (
-    <SlideShell number={10} title="Coverage timeline" subtitle="Weekly article counts by publication">
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={rows}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-          <YAxis tick={{ fontSize: 11 }} />
-          <Tooltip />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          {Array.from(bySource.keys()).map((src) => (
-            <Line
-              key={src}
-              type="monotone"
-              dataKey={src}
-              name={SOURCE_LABELS[src] || src}
-              stroke={SOURCE_COLORS[src] || "#6b7280"}
-              strokeWidth={2}
-              dot={false}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+    <SlideShell
+      number={7}
+      title="Content volume"
+      subtitle={`Articles published — ${data.host.title_name} vs media competitors, last ${data.period_days} days`}
+    >
+      {data.contentVolume.length === 0 ? (
+        <Pending text="Content volume data pending for this period." />
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={rows}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar dataKey="articles" name="Articles">
+                {rows.map((r) => (
+                  <Cell key={r.name} fill={r.isHost ? "#2563EB" : "#94A3B8"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-[10px] text-muted italic">
+            Social posting volumes: data pending (social capture not yet live).
+          </p>
+        </>
+      )}
     </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S8 — Partner title card
+// ---------------------------------------------------------------------------
+
+export function S8TitleCardSlide({ data }: { data: BriefDeckData }) {
+  const pv = data.promotionalValue;
+  return (
+    <section className="brief-slide break-after-page bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] text-white rounded-lg p-12 mb-6 print:rounded-none print:min-h-[210mm] print:flex print:flex-col print:justify-center">
+      <div className="text-xs uppercase tracking-widest text-blue-300 font-semibold">
+        Partner performance
+      </div>
+      <h2 className="text-4xl font-semibold mt-3">{data.brand}</h2>
+      <p className="mt-3 text-sm opacity-70">
+        Last {data.period_days} days · Prepared{" "}
+        {new Date(data.generated_at).toLocaleDateString("en-AU")}
+      </p>
+      <div className="mt-12 grid grid-cols-3 gap-6">
+        <div>
+          <div className="text-3xl font-semibold">{data.coverage.summary.total_articles}</div>
+          <div className="opacity-70 text-xs uppercase tracking-wide mt-1">Total articles</div>
+        </div>
+        <div>
+          <div className="text-3xl font-semibold">{data.coverage.summary.bpg_articles}</div>
+          <div className="opacity-70 text-xs uppercase tracking-wide mt-1">
+            {data.host.title_name} coverage
+          </div>
+        </div>
+        <div>
+          <div className="text-3xl font-semibold">{formatAudCompact(pv.mid)}</div>
+          <div className="opacity-70 text-xs uppercase tracking-wide mt-1">
+            Promotional value
+          </div>
+          <div className="text-xs opacity-60 mt-1">Range {formatPromoBand(pv)}</div>
+        </div>
+      </div>
+      <p className="mt-10 text-[10px] opacity-50 italic">
+        Midpoint {AUD.format(pv.mid)}. {promoFootnote(data.host.title_name)}
+      </p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S9 — Coverage
+// ---------------------------------------------------------------------------
+
+export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
+  const rows = coverageVolumeRows(data).map((r) => ({
+    name: sourceLabel(r.source_id) + (r.is_host ? " (host)" : ""),
+    articles: r.article_count,
+    isHost: r.is_host,
+  }));
+  const allZero = rows.every((r) => r.articles === 0);
+
+  return (
+    <SlideShell
+      number={9}
+      title="Your coverage"
+      subtitle={`Editorial support for ${data.brand} — last ${data.period_days} days`}
+    >
+      <div className="grid grid-cols-[240px_1fr] gap-6">
+        <div className="space-y-3">
+          <div className="rounded-md bg-surface border border-border p-3">
+            <div className="text-2xl font-semibold text-foreground">
+              {data.coverage.summary.bpg_articles}
+            </div>
+            <div className="text-xs text-muted mt-1">Articles</div>
+          </div>
+          <div className="rounded-md bg-surface border border-border p-3">
+            <div className="text-2xl font-semibold text-foreground">—</div>
+            <div className="text-xs text-muted mt-1">
+              Social media posts (data pending)
+            </div>
+          </div>
+          <div className="rounded-md bg-surface border border-border p-3">
+            <div className="text-2xl font-semibold text-foreground">
+              {data.coverage.events.length}
+            </div>
+            <div className="text-xs text-muted mt-1">Events attended</div>
+          </div>
+          <div className="rounded-md bg-surface border border-border p-3">
+            <div className="text-xl font-semibold text-foreground">
+              {formatPromoBand(data.promotionalValue)}
+            </div>
+            <div className="text-xs text-muted mt-1">Promotional value</div>
+          </div>
+        </div>
+        <div>
+          {allZero ? (
+            <Pending text="No brand coverage recorded across these publications in this period." />
+          ) : (
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={rows}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="articles" name="Articles">
+                  {rows.map((r) => (
+                    <Cell key={r.name} fill={r.isHost ? "#2563EB" : "#94A3B8"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+      <PromoFootnote hostTitle={data.host.title_name} />
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S10 — Unique coverage
+// ---------------------------------------------------------------------------
+
+export function S10UniqueSlide({ data }: { data: BriefDeckData }) {
+  const c = data.coverage;
+  const bpgFirstPct =
+    c.first_to_publish.total_shared > 0
+      ? Math.round(
+          (c.first_to_publish.bpg_first / c.first_to_publish.total_shared) * 100
+        )
+      : 0;
+  return (
+    <SlideShell
+      number={10}
+      title="Unique coverage"
+      subtitle={`Stories only BPG ran — ${c.unique_coverage.length} in last ${c.period_days} days`}
+    >
+      <div className="grid grid-cols-4 gap-4 mb-4 text-center">
+        <div className="rounded-md bg-surface p-3">
+          <div className="text-2xl font-semibold">{c.unique_coverage.length}</div>
+          <div className="text-xs text-muted mt-1">BPG-only</div>
+        </div>
+        <div className="rounded-md bg-surface p-3">
+          <div className="text-2xl font-semibold">{c.shared_coverage_count}</div>
+          <div className="text-xs text-muted mt-1">Shared</div>
+        </div>
+        <div className="rounded-md bg-surface p-3">
+          <div className="text-2xl font-semibold">{c.missed_coverage.length}</div>
+          <div className="text-xs text-muted mt-1">Missed (competitor only)</div>
+        </div>
+        <div className="rounded-md bg-surface p-3">
+          <div className="text-2xl font-semibold">{bpgFirstPct}%</div>
+          <div className="text-xs text-muted mt-1">BPG-first rate</div>
+        </div>
+      </div>
+      {uniqueCoverageAllZero(c) ? (
+        <p className="text-xs text-muted italic">
+          Story-clustering backfill in progress — figures will populate as
+          clusters build.
+        </p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {c.unique_coverage.slice(0, 10).map((u) => (
+            <li key={u.id} className="border-l-2 border-accent pl-3">
+              <p className="font-medium">{u.canonical_title}</p>
+              <p className="text-xs text-muted">
+                {new Date(u.first_published_at).toLocaleDateString("en-AU")} ·{" "}
+                {u.sources.map(sourceLabel).join(", ")}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S11 — Share of voice by category
+// ---------------------------------------------------------------------------
+
+export function S11SovSlide({ data }: { data: BriefDeckData }) {
+  const demo = data.rivals?.source_of_truth === "demo";
+  const charts = sovChartsBySource(data);
+  return (
+    <SlideShell
+      number={11}
+      title={`Share of voice by category${demo ? " (demo matrix)" : ""}`}
+      subtitle={
+        data.rivals
+          ? `${data.brand} vs ${data.rivals.rivals.join(", ")} — last ${data.period_days} days`
+          : undefined
+      }
+    >
+      {!data.rivals || data.rivals.rivals.length === 0 ? (
+        <Pending text="Share of voice pending — TD to supply competitor matrix." />
+      ) : charts.length === 0 ? (
+        <Pending text="No category coverage found for this competitor set in the period." />
+      ) : (
+        <div className="grid grid-cols-2 gap-6">
+          {charts.slice(0, 6).map((chart) => (
+            <div key={chart.source_id}>
+              <p className="text-sm font-medium text-foreground mb-1">
+                {sourceLabel(chart.source_id)}
+              </p>
+              <ResponsiveContainer width="100%" height={Math.max(120, chart.rows.length * 34)}>
+                <BarChart data={chart.rows} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="brand" width={140} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Articles">
+                    {chart.rows.map((r) => (
+                      <Cell
+                        key={r.brand}
+                        fill={r.brand === data.brand ? "#2563EB" : "#94A3B8"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
+        </div>
+      )}
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S12 — Advertising SoV
+// ---------------------------------------------------------------------------
+
+export function S12AdvSovSlide({ data }: { data: BriefDeckData }) {
+  const rows = data.advertisingSov.map((r) => ({
+    name: r.advertiser,
+    spend: r.spend_aud,
+    periods: r.insertion_periods,
+  }));
+  const allZero = rows.length === 0 || rows.every((r) => r.spend === 0);
+  return (
+    <SlideShell
+      number={12}
+      title="Share of voice — advertising presence"
+      subtitle={`Advertising spend by brand across ${data.host.title_name} titles, last ${data.period_days} days`}
+    >
+      {allZero ? (
+        <Pending text="Advertising share of voice pending — Salesforce spend import." />
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={rows}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => formatAudCompact(Number(v))}
+              />
+              <Tooltip formatter={(v) => AUD.format(Number(v))} />
+              <Bar dataKey="spend" name="Spend (AUD)" fill="#059669" />
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-xs text-muted">
+            {rows
+              .map((r) => `${r.name}: ${r.periods} insertion period${r.periods === 1 ? "" : "s"}`)
+              .join("  ·  ")}
+          </p>
+        </>
+      )}
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S13 — Proof (3 most recent)
+// ---------------------------------------------------------------------------
+
+export function S13ProofSlide({ data }: { data: BriefDeckData }) {
+  const latest = [...(data.coverage.top_articles || [])]
+    .sort(
+      (a, b) =>
+        new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+    )
+    .slice(0, 3);
+  return (
+    <SlideShell number={13} title="The proof" subtitle="Most recent coverage">
+      {latest.length === 0 ? (
+        <Pending text="No coverage in the selected period." />
+      ) : (
+        <div className="grid grid-cols-3 gap-4">
+          {latest.map((a) => (
+            <a
+              key={`${a.source_id}-${a.external_id}`}
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-md border border-border overflow-hidden hover:border-accent"
+            >
+              <div className="h-24 bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] flex items-center justify-center">
+                <span className="text-white text-sm font-semibold">
+                  {sourceLabel(a.source_id)}
+                </span>
+              </div>
+              <div className="p-3">
+                <p className="text-sm font-medium text-foreground line-clamp-3">
+                  {a.title}
+                </p>
+                <p className="text-xs text-muted mt-2">
+                  {new Date(a.published_at).toLocaleDateString("en-AU")}
+                </p>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+      <p className="mt-3 text-[10px] text-muted italic">
+        Article images are embedded in the exported PowerPoint where available.
+      </p>
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S14 — All the proof
+// ---------------------------------------------------------------------------
+
+export function S14AllProofSlide({ data }: { data: BriefDeckData }) {
+  const shown = data.allArticles.slice(0, 50);
+  const more = data.allArticles.length - shown.length;
+  return (
+    <SlideShell
+      number={14}
+      title="All the proof"
+      subtitle={`Full coverage appendix — ${data.allArticles.length} articles, last ${data.period_days} days`}
+    >
+      {data.allArticles.length === 0 ? (
+        <Pending text="No articles found for this brand in the selected period." />
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted">
+                  <th className="py-2 pr-4 font-medium">Date</th>
+                  <th className="py-2 pr-4 font-medium">Title</th>
+                  <th className="py-2 font-medium">Publication</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((a, i) => (
+                  <tr key={`${a.url}-${i}`} className="border-b border-border/60">
+                    <td className="py-1.5 pr-4 text-xs text-muted whitespace-nowrap">
+                      {a.published_at
+                        ? new Date(a.published_at).toLocaleDateString("en-AU")
+                        : "—"}
+                    </td>
+                    <td className="py-1.5 pr-4">
+                      {a.url ? (
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline"
+                        >
+                          {a.title}
+                        </a>
+                      ) : (
+                        a.title
+                      )}
+                    </td>
+                    <td className="py-1.5 text-xs text-muted whitespace-nowrap">
+                      {sourceLabel(a.source_id)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {more > 0 && (
+            <p className="mt-3 text-xs text-muted italic">
+              …and {more} more in the exported deck.
+            </p>
+          )}
+        </>
+      )}
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S15 / S16 — Campaigns
+// ---------------------------------------------------------------------------
+
+function InsertionTable({
+  insertions,
+  withNotes,
+}: {
+  insertions: Array<{
+    id: string | number;
+    run_date: string;
+    source_id: string;
+    ad_type: string | null;
+    page_position: string | null;
+    est_readership: number | null;
+    clicks: number | null;
+    notes: string | null;
+  }>;
+  withNotes?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-muted">
+            <th className="py-2 pr-3 font-medium">Date</th>
+            <th className="py-2 pr-3 font-medium">Publication</th>
+            <th className="py-2 pr-3 font-medium">Ad type</th>
+            <th className="py-2 pr-3 font-medium">Page position</th>
+            <th className="py-2 pr-3 font-medium">Est. readership</th>
+            <th className="py-2 pr-3 font-medium">Clicks</th>
+            {withNotes && <th className="py-2 font-medium">Notes</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {insertions.map((i) => (
+            <tr key={i.id} className="border-b border-border/60">
+              <td className="py-1.5 pr-3 text-xs whitespace-nowrap">
+                {new Date(i.run_date).toLocaleDateString("en-AU")}
+              </td>
+              <td className="py-1.5 pr-3 text-xs">{sourceLabel(i.source_id)}</td>
+              <td className="py-1.5 pr-3 text-xs">{i.ad_type || "—"}</td>
+              <td className="py-1.5 pr-3 text-xs">{i.page_position || "—"}</td>
+              <td className="py-1.5 pr-3 text-xs">
+                {i.est_readership != null
+                  ? Number(i.est_readership).toLocaleString("en-AU")
+                  : "—"}
+              </td>
+              <td className="py-1.5 pr-3 text-xs">
+                {i.clicks != null ? Number(i.clicks).toLocaleString("en-AU") : "—"}
+              </td>
+              {withNotes && (
+                <td className="py-1.5 text-xs text-muted">{i.notes || "—"}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function S15CampaignSlide({ data }: { data: BriefDeckData }) {
+  const lc = data.latestCampaign;
+  return (
+    <SlideShell number={15} title="Most recent campaign">
+      {!lc ? (
+        <Pending text="Campaign data pending — campaign report import (Admin > Campaigns)." />
+      ) : (
+        <>
+          <p className="text-sm font-medium text-foreground mb-3">
+            {lc.campaign.name}
+            {lc.campaign.period_start && lc.campaign.period_end && (
+              <span className="text-muted font-normal">
+                {" "}
+                · {new Date(lc.campaign.period_start).toLocaleDateString("en-AU")} –{" "}
+                {new Date(lc.campaign.period_end).toLocaleDateString("en-AU")}
+              </span>
+            )}
+          </p>
+          <CampaignTotals data={data} />
+          {lc.insertions.length === 0 ? (
+            <p className="text-xs text-muted italic mt-3">
+              No insertions recorded for this campaign yet.
+            </p>
+          ) : (
+            <div className="mt-4">
+              <InsertionTable insertions={lc.insertions} />
+            </div>
+          )}
+        </>
+      )}
+    </SlideShell>
+  );
+}
+
+function CampaignTotals({ data }: { data: BriefDeckData }) {
+  const lc = data.latestCampaign;
+  if (!lc) return null;
+  const t = insertionTotals(lc.insertions);
+  const cells: Array<[string, string]> = [
+    [String(t.advertisements), "Advertisements"],
+    [t.clicks.toLocaleString("en-AU"), "Click-thrus"],
+    [t.ctrPct != null ? `${t.ctrPct.toFixed(2)}%` : "—", "CTR"],
+    [
+      lc.campaign.estimated_reach != null
+        ? Number(lc.campaign.estimated_reach).toLocaleString("en-AU")
+        : "—",
+      "Estimated reach",
+    ],
+    [
+      lc.campaign.spend_aud != null
+        ? formatAudCompact(Number(lc.campaign.spend_aud))
+        : "—",
+      "Spend",
+    ],
+    [
+      lc.campaign.bonus_ad_value != null
+        ? formatAudCompact(Number(lc.campaign.bonus_ad_value))
+        : "—",
+      "Bonus ad value",
+    ],
+  ];
+  return (
+    <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+      {cells.map(([v, k]) => (
+        <div key={k} className="rounded-md bg-surface border border-border p-2.5">
+          <div className="text-lg font-semibold text-foreground">{v}</div>
+          <div className="text-[10px] text-muted mt-0.5">{k}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function S16CampaignYtdSlide({ data }: { data: BriefDeckData }) {
+  const year = new Date().getFullYear();
+  const t = insertionTotals(data.ytdInsertions);
+  return (
+    <SlideShell
+      number={16}
+      title="Campaign reports — YTD"
+      subtitle={`All insertions across campaigns, ${year}`}
+    >
+      {data.ytdInsertions.length === 0 ? (
+        <Pending text="Campaign data pending — campaign report import (Admin > Campaigns)." />
+      ) : (
+        <>
+          <p className="text-sm font-medium text-foreground mb-3">
+            {t.advertisements} advertisements ·{" "}
+            {t.clicks.toLocaleString("en-AU")} click-thrus ·{" "}
+            {t.ctrPct != null ? `${t.ctrPct.toFixed(2)}% CTR` : "CTR —"}
+          </p>
+          <InsertionTable insertions={data.ytdInsertions} withNotes />
+        </>
+      )}
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S17 — Optimisation & recommendations
+// ---------------------------------------------------------------------------
+
+export function S17RecommendationsSlide({ data }: { data: BriefDeckData }) {
+  return (
+    <SlideShell
+      number={17}
+      title="Optimisation & recommendations"
+      subtitle={`Prepared for ${data.brand}`}
+    >
+      <RecommendationsEditor
+        hostSlug={data.host.slug}
+        brand={data.brand}
+        initialMd={data.recommendationsMd}
+      />
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S18 — Proposal
+// ---------------------------------------------------------------------------
+
+export function S18ProposalSlide({ data }: { data: BriefDeckData }) {
+  return (
+    <SlideShell number={18} title="Proposal">
+      <div className="rounded-md bg-surface border border-dashed border-border p-12 text-center">
+        <p className="text-lg italic text-muted">Proposal — TD to supply</p>
+        <p className="text-xs text-muted mt-2">
+          Commercial proposal for {data.brand} to be inserted before the meeting.
+        </p>
+      </div>
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S19 — Looking ahead
+// ---------------------------------------------------------------------------
+
+export function S19LookingAheadSlide() {
+  return (
+    <SlideShell number={19} title="Looking ahead">
+      <div className="space-y-3">
+        {LOOKING_AHEAD_ITEMS.map((item) => (
+          <div
+            key={item.title}
+            className="flex items-baseline gap-4 rounded-md bg-surface border border-border px-4 py-3"
+          >
+            <span className="text-sm font-semibold text-foreground min-w-[160px]">
+              {item.title}
+            </span>
+            <span className="text-sm text-muted">{item.detail}</span>
+          </div>
+        ))}
+      </div>
+    </SlideShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// S20 — Thank you
+// ---------------------------------------------------------------------------
+
+export function S20ThankYouSlide({ data }: { data: BriefDeckData }) {
+  return (
+    <section className="brief-slide bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] text-white rounded-lg p-12 mb-6 print:rounded-none print:min-h-[210mm] print:flex print:flex-col print:justify-center">
+      <h2 className="text-4xl font-semibold">Thank you for your partnership</h2>
+      <p className="mt-3 text-sm opacity-70">
+        {data.host.title_name} × {data.brand}
+      </p>
+      <div className="mt-12 inline-flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-slate-400/60 text-xs italic text-slate-400">
+        Partner logo
+      </div>
+    </section>
   );
 }
