@@ -1,20 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
-import { VERTICAL_SOURCES } from "@/lib/constants";
-import type { VerticalCode } from "@/hooks/use-vertical";
 import { NextResponse, type NextRequest } from "next/server";
+import { parsePeriod, resolveSources } from "../period";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
-  const vertical = (params.get("vertical") || "travel") as VerticalCode;
-  const days = parseInt(params.get("days") || "30", 10);
-  const sources = VERTICAL_SOURCES[vertical] || VERTICAL_SOURCES.travel;
+
+  const parsed = parsePeriod(params);
+  if ("error" in parsed) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
+  }
+  const { period } = parsed;
+  const sources = resolveSources(params);
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase.rpc("publication_stats", {
-    p_sources: [...sources],
-    p_days: days,
-  });
+  const { data, error } =
+    period.mode === "range"
+      ? await supabase.rpc("publication_stats_range", {
+          p_sources: sources,
+          p_from: period.from,
+          p_to: period.to,
+        })
+      : await supabase.rpc("publication_stats", {
+          p_sources: sources,
+          p_days: period.days,
+        });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,5 +46,8 @@ export async function GET(request: NextRequest) {
     last_published: r.last_published,
   }));
 
-  return NextResponse.json({ stats, days });
+  if (period.mode === "range") {
+    return NextResponse.json({ stats, from: period.from, to: period.to });
+  }
+  return NextResponse.json({ stats, days: period.days });
 }

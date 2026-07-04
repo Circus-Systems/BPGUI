@@ -28,9 +28,27 @@ export async function POST(request: NextRequest) {
     notes: r.notes || null,
   }));
   if (rows.length === 0) return NextResponse.json({ error: "No rows" }, { status: 400 });
-  const { data, error } = await db.from("events_attended").insert(rows).select();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ inserted: data?.length || 0 });
+
+  // The table has a unique dedupe index on
+  // (source_id, event_name, event_date, coalesce(advertiser,'')) — tolerate
+  // duplicates by retrying row-by-row when a batch hits a unique violation.
+  const UNIQUE_VIOLATION = "23505";
+  let inserted = 0;
+  let skipped = 0;
+  const { error } = await db.from("events_attended").insert(rows);
+  if (!error) {
+    inserted = rows.length;
+  } else if (error.code !== UNIQUE_VIOLATION) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } else {
+    for (const row of rows) {
+      const { error: rowErr } = await db.from("events_attended").insert(row);
+      if (!rowErr) inserted++;
+      else if (rowErr.code === UNIQUE_VIOLATION) skipped++;
+      else return NextResponse.json({ error: rowErr.message, inserted, skipped }, { status: 500 });
+    }
+  }
+  return NextResponse.json({ inserted, skipped });
 }
 
 export async function DELETE(request: NextRequest) {

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { deckFilename } from "@/lib/brief-deck";
 
 /**
- * Downloads a .pptx deck for the current brand.
+ * Downloads the Key Partner Meeting .pptx deck for the current brand.
  *
  * Hits /api/brand/[slug]/pptx which generates a native PowerPoint file
  * (editable in Keynote/PPT), not a print-to-PDF of the web view.
@@ -12,10 +13,19 @@ export function PrintButton({
   slug,
   brandName,
   period,
+  host,
+  hostSlug,
+  brand,
 }: {
   slug: string;
   brandName: string;
   period: number;
+  /** host query param threaded through to the pptx route */
+  host: string;
+  /** resolved host slug for the filename */
+  hostSlug: string;
+  /** resolved brand name for the filename */
+  brand: string;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +34,7 @@ export function PrintButton({
     try {
       const url = `/api/brand/${encodeURIComponent(slug)}/pptx?name=${encodeURIComponent(
         brandName,
-      )}&period=${period}`;
+      )}&period=${period}&host=${encodeURIComponent(host)}`;
       const res = await fetch(url);
       if (!res.ok) {
         const err = await res.text();
@@ -35,7 +45,7 @@ export function PrintButton({
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `AdvertiserBrief_${brandName.replace(/[^A-Za-z0-9_-]+/g, "_")}_${period}d.pptx`;
+      a.download = deckFilename(brand, hostSlug, period);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

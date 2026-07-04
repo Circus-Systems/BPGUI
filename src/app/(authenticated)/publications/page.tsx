@@ -1,11 +1,14 @@
 "use client";
 
 import { useVertical } from "@/hooks/use-vertical";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { VERTICAL_SOURCES } from "@/lib/constants";
 import { PublicationCard } from "@/components/publications/publication-card";
 import { VolumeChart } from "@/components/publications/volume-chart";
 import { ComparisonTable } from "@/components/publications/comparison-table";
+import { PeriodPicker, PERIOD_PRESETS } from "@/components/publications/period-picker";
+import { SourceFilter } from "@/components/publications/source-filter";
 
 interface PublicationStat {
   source_id: string;
@@ -21,30 +24,118 @@ interface TimelineEntry {
   [sourceId: string]: string | number;
 }
 
-const PERIOD_OPTIONS = [
-  { value: "7", label: "7 days" },
-  { value: "30", label: "30 days" },
-  { value: "90", label: "90 days" },
-];
+const DEFAULT_DAYS = "30";
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PRESET_VALUES = PERIOD_PRESETS.map((p) => p.value);
 
-export default function PublicationsPage() {
+function PublicationsContent() {
   const { vertical } = useVertical();
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+
   const [stats, setStats] = useState<PublicationStat[]>([]);
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
-  const [days, setDays] = useState("30");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const sourceIds = [...(VERTICAL_SOURCES[vertical] || [])];
+  // --- URL-driven filter state ---
+  const from = sp.get("from");
+  const to = sp.get("to");
+  const isRange = !!(
+    from &&
+    to &&
+    DATE_RE.test(from) &&
+    DATE_RE.test(to) &&
+    from <= to
+  );
+  const daysParam = sp.get("days") || DEFAULT_DAYS;
+  const days = PRESET_VALUES.includes(daysParam) ? daysParam : DEFAULT_DAYS;
+
+  const verticalSources = useMemo(
+    () => [...(VERTICAL_SOURCES[vertical] || [])],
+    [vertical]
+  );
+
+  const sourcesParam = sp.get("sources");
+  const selectedSources = useMemo(() => {
+    if (!sourcesParam) return verticalSources;
+    const requested = new Set(sourcesParam.split(","));
+    const picked = verticalSources.filter((s) => requested.has(s));
+    return picked.length > 0 ? picked : verticalSources;
+  }, [sourcesParam, verticalSources]);
+
+  const updateParams = useCallback(
+    (mutate: (p: URLSearchParams) => void) => {
+      const p = new URLSearchParams(sp.toString());
+      mutate(p);
+      const qs = p.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [sp, pathname, router]
+  );
+
+  const selectDays = useCallback(
+    (value: string) => {
+      updateParams((p) => {
+        p.delete("from");
+        p.delete("to");
+        if (value === DEFAULT_DAYS) p.delete("days");
+        else p.set("days", value);
+      });
+    },
+    [updateParams]
+  );
+
+  const applyRange = useCallback(
+    (newFrom: string, newTo: string) => {
+      updateParams((p) => {
+        p.delete("days");
+        p.set("from", newFrom);
+        p.set("to", newTo);
+      });
+    },
+    [updateParams]
+  );
+
+  const toggleSource = useCallback(
+    (sourceId: string) => {
+      const set = new Set(selectedSources);
+      if (set.has(sourceId)) {
+        if (set.size === 1) return; // keep at least one selected
+        set.delete(sourceId);
+      } else {
+        set.add(sourceId);
+      }
+      const next = verticalSources.filter((s) => set.has(s));
+      updateParams((p) => {
+        if (next.length === verticalSources.length) p.delete("sources");
+        else p.set("sources", next.join(","));
+      });
+    },
+    [selectedSources, verticalSources, updateParams]
+  );
+
+  const selectAllSources = useCallback(() => {
+    updateParams((p) => p.delete("sources"));
+  }, [updateParams]);
+
+  // --- Data fetching ---
+  const periodQuery = isRange ? `from=${from}&to=${to}` : `days=${days}`;
+  const sourcesQuery =
+    selectedSources.length === verticalSources.length
+      ? ""
+      : `&sources=${encodeURIComponent(selectedSources.join(","))}`;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      const qs = `vertical=${vertical}&${periodQuery}${sourcesQuery}`;
       const [statsRes, timelineRes] = await Promise.all([
-        fetch(`/api/publications/stats?vertical=${vertical}&days=${days}`),
-        fetch(`/api/publications/timeline?vertical=${vertical}&days=${days}`),
+        fetch(`/api/publications/stats?${qs}`),
+        fetch(`/api/publications/timeline?${qs}`),
       ]);
 
       if (!statsRes.ok || !timelineRes.ok) {
@@ -63,11 +154,20 @@ export default function PublicationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [vertical, days]);
+  }, [vertical, periodQuery, sourcesQuery]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Period labels / approximate day count for the breakdown API
+  const periodDays = isRange
+    ? Math.max(
+        1,
+        Math.round((Date.parse(to!) - Date.parse(from!)) / 86400000) + 1
+      )
+    : parseInt(days, 10);
+  const periodLabel = isRange ? `${from} to ${to}` : `Last ${days} days`;
 
   // Summary totals
   const totalArticles = stats.reduce((sum, s) => sum + s.article_count, 0);
@@ -79,26 +179,27 @@ export default function PublicationsPage() {
   return (
     <main className="flex-1 px-4 py-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4">
           <h1 className="text-xl font-semibold text-foreground">
             Publications
           </h1>
-          <div className="flex gap-1">
-            {PERIOD_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setDays(opt.value)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  days === opt.value
-                    ? "bg-accent text-white"
-                    : "bg-surface text-muted hover:text-foreground"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <PeriodPicker
+            days={days}
+            isRange={isRange}
+            from={isRange ? from : null}
+            to={isRange ? to : null}
+            onSelectDays={selectDays}
+            onApplyRange={applyRange}
+          />
         </div>
+
+        {/* Publication multi-select */}
+        <SourceFilter
+          sources={verticalSources}
+          selected={selectedSources}
+          onToggle={toggleSource}
+          onSelectAll={selectAllSources}
+        />
 
         {/* Summary KPIs */}
         <div className="grid grid-cols-3 gap-4">
@@ -107,12 +208,12 @@ export default function PublicationsPage() {
             <p className="text-2xl font-semibold text-foreground">
               {loading ? "—" : totalArticles.toLocaleString()}
             </p>
-            <p className="text-xs text-muted mt-1">Last {days} days</p>
+            <p className="text-xs text-muted mt-1">{periodLabel}</p>
           </div>
           <div className="rounded-xl border border-border bg-white p-4">
             <p className="text-xs text-muted">Active Sources</p>
             <p className="text-2xl font-semibold text-foreground">
-              {loading ? "—" : `${activeSources} / ${sourceIds.length}`}
+              {loading ? "—" : `${activeSources} / ${selectedSources.length}`}
             </p>
             <p className="text-xs text-muted mt-1">Publishing in period</p>
           </div>
@@ -121,7 +222,7 @@ export default function PublicationsPage() {
             <p className="text-2xl font-semibold text-foreground">
               {loading ? "—" : avgWordCount.toLocaleString()}
             </p>
-            <p className="text-xs text-muted mt-1">Across all sources</p>
+            <p className="text-xs text-muted mt-1">Across selected sources</p>
           </div>
         </div>
 
@@ -150,7 +251,7 @@ export default function PublicationsPage() {
         {!loading && !error && (
           <>
             {/* Volume chart */}
-            <VolumeChart timeline={timeline} sourceIds={sourceIds} />
+            <VolumeChart timeline={timeline} sourceIds={selectedSources} />
 
             {/* Comparison table */}
             <ComparisonTable stats={stats} />
@@ -160,19 +261,45 @@ export default function PublicationsPage() {
               <h3 className="text-sm font-medium text-foreground mb-3">
                 Per-Publication Breakdown
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {stats.map((stat) => (
-                  <PublicationCard
-                    key={stat.source_id}
-                    stat={stat}
-                    days={parseInt(days, 10)}
-                  />
-                ))}
-              </div>
+              {stats.length === 0 ? (
+                <div className="rounded-xl border border-border bg-white p-6 text-center">
+                  <p className="text-sm text-muted">
+                    No publication data for this period yet — data pending.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {stats.map((stat) => (
+                    <PublicationCard
+                      key={stat.source_id}
+                      stat={stat}
+                      days={periodDays}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
       </div>
     </main>
+  );
+}
+
+export default function PublicationsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex-1 px-4 py-6">
+          <div className="mx-auto max-w-7xl space-y-6">
+            <div className="h-8 w-48 animate-pulse rounded bg-surface" />
+            <div className="h-72 animate-pulse rounded-xl bg-surface" />
+            <div className="h-48 animate-pulse rounded-xl bg-surface" />
+          </div>
+        </main>
+      }
+    >
+      <PublicationsContent />
+    </Suspense>
   );
 }
