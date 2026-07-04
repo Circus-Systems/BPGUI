@@ -1,7 +1,8 @@
 "use client";
 
 import { useVertical } from "@/hooks/use-vertical";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { FilterBar } from "@/components/articles/filter-bar";
 import { ArticleCard } from "@/components/articles/article-card";
 import { ArticleDetail } from "@/components/articles/article-detail";
@@ -19,6 +20,7 @@ interface Article {
   is_sponsored: number;
   categories: string | null;
   content_text?: string | null;
+  story_flags?: { exclusive: boolean; is_first: boolean } | null;
 }
 
 interface Publication {
@@ -27,38 +29,81 @@ interface Publication {
 }
 
 const PAGE_SIZE = 30;
+const RANGE_PRESETS = ["30", "90", "180", "365"];
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export default function ArticlesPage() {
+function ArticlesPageInner() {
   const { vertical } = useVertical();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // URL is the source of truth for filters (shareable views)
+  const urlSearch = searchParams.get("q") || "";
+  const rangeParam = searchParams.get("range") || "all";
+  const dateRange = RANGE_PRESETS.includes(rangeParam) ? rangeParam : "all";
+  const from = YMD_RE.test(searchParams.get("from") || "")
+    ? (searchParams.get("from") as string)
+    : "";
+  const to = YMD_RE.test(searchParams.get("to") || "")
+    ? (searchParams.get("to") as string)
+    : "";
+  const sources = (searchParams.get("sources") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const sponsored = searchParams.get("sponsored") || "all";
+
+  const setParams = useCallback(
+    (updates: Record<string, string>) => {
+      const next = new URLSearchParams(searchParams.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [searchParams, router, pathname]
+  );
+
   const [articles, setArticles] = useState<Article[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState("all");
-  const [source, setSource] = useState("");
-  const [sponsored, setSponsored] = useState("all");
-
   // Detail panel
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
 
-  // Search debounce
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Search input is local (for typing responsiveness); debounced into the URL
+  const [search, setSearch] = useState(urlSearch);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+  const lastCommittedSearch = useRef(urlSearch);
 
   useEffect(() => {
+    if (search === urlSearch) return;
     clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
-      setDebouncedSearch(search);
+      lastCommittedSearch.current = search;
+      setParams({ q: search });
     }, 400);
     return () => clearTimeout(searchTimeout.current);
-  }, [search]);
+  }, [search, urlSearch, setParams]);
 
-  // Fetch publications for filter dropdown
+  // Sync input when the URL changes externally (back/forward, shared link)
+  useEffect(() => {
+    if (urlSearch !== lastCommittedSearch.current) {
+      lastCommittedSearch.current = urlSearch;
+      setSearch(urlSearch);
+    }
+  }, [urlSearch]);
+
+  // Fetch publications for source multi-select
   useEffect(() => {
     fetch(`/api/publications?vertical=${vertical}`)
       .then((r) => r.json())
@@ -77,11 +122,13 @@ export default function ArticlesPage() {
         vertical,
         offset: String(offset),
         limit: String(PAGE_SIZE),
-        dateRange,
         sponsored,
       });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-      if (source) params.set("source", source);
+      if (urlSearch) params.set("search", urlSearch);
+      if (sources.length > 0) params.set("sources", sources.join(","));
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (!from && !to && dateRange !== "all") params.set("days", dateRange);
 
       try {
         const res = await fetch(`/api/articles?${params}`);
@@ -94,6 +141,9 @@ export default function ArticlesPage() {
           setArticles(data.articles || []);
         }
         setHasMore(data.hasMore ?? false);
+        setMatchCount(
+          typeof data.matchCount === "number" ? data.matchCount : null
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -101,7 +151,9 @@ export default function ArticlesPage() {
         setLoadingMore(false);
       }
     },
-    [vertical, debouncedSearch, dateRange, source, sponsored]
+    // sources is derived fresh each render; join for a stable dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [vertical, urlSearch, dateRange, from, to, sources.join(","), sponsored]
   );
 
   // Reset and fetch when filters change
@@ -109,10 +161,14 @@ export default function ArticlesPage() {
     fetchArticles(0, false);
   }, [fetchArticles]);
 
-  // Reset source when vertical changes
+  // Reset source selection when vertical changes (slugs differ per vertical)
+  const prevVertical = useRef(vertical);
   useEffect(() => {
-    setSource("");
-  }, [vertical]);
+    if (prevVertical.current !== vertical) {
+      prevVertical.current = vertical;
+      setParams({ sources: "" });
+    }
+  }, [vertical, setParams]);
 
   function handleLoadMore() {
     fetchArticles(articles.length, true);
@@ -127,19 +183,44 @@ export default function ArticlesPage() {
           search={search}
           onSearchChange={setSearch}
           dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-          source={source}
-          onSourceChange={setSource}
+          onDateRangeChange={(value) =>
+            setParams({
+              range: value === "all" ? "" : value,
+              from: "",
+              to: "",
+            })
+          }
+          from={from}
+          to={to}
+          onCustomRangeChange={(nextFrom, nextTo) =>
+            setParams({ from: nextFrom, to: nextTo, range: "" })
+          }
+          sources={sources}
+          onSourcesChange={(value) => setParams({ sources: value.join(",") })}
           sponsored={sponsored}
-          onSponsoredChange={setSponsored}
+          onSponsoredChange={(value) =>
+            setParams({ sponsored: value === "all" ? "" : value })
+          }
           publications={publications}
         />
 
         {/* Results count */}
         {!loading && (
           <p className="text-xs text-muted">
-            Showing {articles.length} articles
-            {hasMore && " (more available)"}
+            {urlSearch && matchCount != null ? (
+              <>
+                <span className="font-medium text-foreground">
+                  {matchCount.toLocaleString()}
+                </span>{" "}
+                article{matchCount === 1 ? "" : "s"} match
+                {matchCount === 1 ? "es" : ""} &ldquo;{urlSearch}&rdquo;
+              </>
+            ) : (
+              <>
+                Showing {articles.length} articles
+                {hasMore && " (more available)"}
+              </>
+            )}
           </p>
         )}
 
@@ -210,5 +291,14 @@ export default function ArticlesPage() {
         />
       )}
     </main>
+  );
+}
+
+export default function ArticlesPage() {
+  // useSearchParams requires a Suspense boundary in the App Router
+  return (
+    <Suspense fallback={null}>
+      <ArticlesPageInner />
+    </Suspense>
   );
 }

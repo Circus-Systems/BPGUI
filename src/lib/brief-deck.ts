@@ -147,9 +147,17 @@ export interface CampaignRow {
   period_start: string | null;
   period_end: string | null;
   spend_aud: number | null;
-  bonus_ad_value: number | null;
+  // TEXT in the DB by design — carries "2x bonus eDMs" as well as plain numbers
+  bonus_ad_value: string | null;
   estimated_reach: number | null;
   creative_url: string | null;
+}
+
+/** bonus_ad_value is TEXT: plain numbers get currency formatting, anything else renders verbatim. */
+export function formatBonusValue(v: string | null, fmt: (n: number) => string): string {
+  if (v == null || String(v).trim() === "") return "—";
+  const n = Number(v);
+  return Number.isFinite(n) ? fmt(n) : String(v);
 }
 
 export interface InsertionRow {

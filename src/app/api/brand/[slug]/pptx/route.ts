@@ -24,6 +24,7 @@ import {
   READERSHIP_SOURCE_NOTE,
   READERSHIP_STATS,
   type BriefDeckData,
+  formatBonusValue,
 } from "@/lib/brief-deck";
 import { fetchOgImageData } from "@/lib/brief-og";
 
@@ -794,7 +795,7 @@ function slide15Campaign(pptx: PptxGenJS, d: BriefDeckData) {
     [t.ctrPct != null ? `${t.ctrPct.toFixed(2)}%` : "—", "CTR"],
     [campaign.estimated_reach != null ? Number(campaign.estimated_reach).toLocaleString("en-AU") : "—", "Estimated reach"],
     [campaign.spend_aud != null ? formatAudCompact(Number(campaign.spend_aud)) : "—", "Spend"],
-    [campaign.bonus_ad_value != null ? formatAudCompact(Number(campaign.bonus_ad_value)) : "—", "Bonus ad value"],
+    [formatBonusValue(campaign.bonus_ad_value, formatAudCompact), "Bonus ad value"],
   ];
   kpis.forEach(([v, k], i) => {
     const x = 0.5 + i * 2.13;

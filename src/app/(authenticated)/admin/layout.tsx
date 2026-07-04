@@ -8,8 +8,9 @@ const TABS = [
   { href: "/admin/journalists", label: "Journalists" },
   { href: "/admin/events", label: "Events" },
   { href: "/admin/spend", label: "Spend" },
+  { href: "/admin/campaigns", label: "Campaigns" },
   { href: "/admin/survey", label: "Survey" },
-  { href: "/admin/ave-rates", label: "AVE rates" },
+  { href: "/admin/ave-rates", label: "Promotional Value rates" },
 ];
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -27,7 +28,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Admin</h1>
         <p className="text-sm text-muted mt-1">
-          Manage journalist roster, events, advertiser spend, survey results, and AVE rate card.
+          Manage journalist roster, events, advertiser spend, campaigns, survey results, and the Promotional Value rate card.
         </p>
       </div>
       <nav className="mb-6 flex flex-wrap gap-1 border-b border-border">

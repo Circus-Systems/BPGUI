@@ -56,6 +56,14 @@ export default function AveRatesAdmin() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-foreground">Promotional Value rates (TD rate card)</h2>
+        <p className="text-xs text-muted mt-1">
+          Dollar values assigned per standard mention vs feature, per title. Used to value earned
+          editorial coverage.
+        </p>
+      </div>
+
       <section className="rounded-lg border border-border bg-white p-5">
         <h2 className="text-sm font-semibold mb-3">Add or update rate</h2>
         <form onSubmit={save} className="grid grid-cols-1 md:grid-cols-4 gap-3">

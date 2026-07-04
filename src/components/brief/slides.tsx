@@ -33,6 +33,7 @@ import {
   sovChartsBySource,
   uniqueCoverageAllZero,
   type BriefDeckData,
+  formatBonusValue,
 } from "@/lib/brief-deck";
 
 /**
@@ -798,9 +799,7 @@ function CampaignTotals({ data }: { data: BriefDeckData }) {
       "Spend",
     ],
     [
-      lc.campaign.bonus_ad_value != null
-        ? formatAudCompact(Number(lc.campaign.bonus_ad_value))
-        : "—",
+      formatBonusValue(lc.campaign.bonus_ad_value, formatAudCompact),
       "Bonus ad value",
     ],
   ];

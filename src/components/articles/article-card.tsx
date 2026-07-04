@@ -14,6 +14,8 @@ interface Article {
   word_count: number | null;
   is_sponsored: number;
   categories: string | null;
+  /** null/undefined = not yet clustered — render no story badges */
+  story_flags?: { exclusive: boolean; is_first: boolean } | null;
 }
 
 export function ArticleCard({
@@ -49,6 +51,22 @@ export function ArticleCard({
             {article.is_sponsored === 1 && (
               <span className="rounded-full bg-removed/10 px-2 py-0.5 text-xs font-medium text-removed">
                 Sponsored
+              </span>
+            )}
+            {article.story_flags?.exclusive && (
+              <span
+                title="No other tracked publication has covered this story"
+                className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+              >
+                Exclusive
+              </span>
+            )}
+            {article.story_flags?.is_first && !article.story_flags?.exclusive && (
+              <span
+                title="First tracked publication to cover this story"
+                className="rounded-full bg-increase/10 px-2 py-0.5 text-xs font-medium text-increase"
+              >
+                First to publish
               </span>
             )}
           </div>
