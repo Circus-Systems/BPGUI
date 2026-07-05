@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { decodeHtmlEntities } from "@/lib/brief-deck";
 import { VERTICAL_SOURCES } from "@/lib/constants";
 import type { VerticalCode } from "@/hooks/use-vertical";
 import { NextResponse, type NextRequest } from "next/server";
@@ -124,6 +125,8 @@ export async function GET(request: NextRequest) {
     const f = flagsByKey.get(`${a.source_id}|${a.external_id}`);
     return {
       ...a,
+      title: decodeHtmlEntities(a.title || ""),
+      excerpt: decodeHtmlEntities(a.excerpt || ""),
       story_flags: f
         ? { exclusive: f.exclusive === true, is_first: f.is_first === true }
         : null,
