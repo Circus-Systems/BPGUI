@@ -67,6 +67,9 @@ export interface Coverage {
     competitor_first: number;
     total_shared: number;
   };
+  /** Uncapped counts for the S10 stat boxes (lists above are capped at 30). */
+  unique_coverage_count?: number;
+  missed_coverage_count?: number;
   timeline: Array<{ week: string; source_id: string; articles: number }>;
   top_articles: Array<{
     source_id: string;
@@ -153,6 +156,19 @@ export interface CampaignRow {
   creative_url: string | null;
 }
 
+/** Decode HTML entities WordPress leaves in titles (&#8211;, &amp;, &quot; ...). */
+export function decodeHtmlEntities(text: string): string {
+  const named: Record<string, string> = {
+    amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+    ndash: "\u2013", mdash: "\u2014", hellip: "\u2026",
+    lsquo: "\u2018", rsquo: "\u2019", ldquo: "\u201C", rdquo: "\u201D",
+  };
+  return (text || "")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&([a-zA-Z]+);/g, (m, n) => named[n] ?? m);
+}
+
 /** bonus_ad_value is TEXT: plain numbers get currency formatting, anything else renders verbatim. */
 export function formatBonusValue(v: string | null, fmt: (n: number) => string): string {
   if (v == null || String(v).trim() === "") return "—";
@@ -226,9 +242,15 @@ export const DEFAULT_HOST_SLUG = "travel-daily";
 
 /** Brand palette shared by web + PPTX (hex without leading #). */
 export const DECK_COLORS = {
-  navy: "0B1220",
-  navyLight: "1E3A5F",
-  accent: "2563EB",
+  // Travel Daily brand palette (matched to the TD Key Partner deck)
+  navy: "1B1B4A",
+  navyLight: "2A2A63",
+  accent: "1B1B4A",
+  tan: "B08A78",       // TD rose-gold — eyebrows/labels on navy
+  tanLight: "C9AB9C",
+  chartNavy: "33518E", // TD series in comparison charts
+  chartBlush: "E8C9C4",
+  chartSage: "D6E4CF",
   muted: "6B7280",
   surface: "F3F4F6",
   text: "111827",
@@ -496,7 +518,13 @@ async function fetchTeam(
     // table may not be readable with anon+session client — fall through
   }
 
-  // 2. Byline-derived roster RPC (names only).
+  // 2. Curated publisher-supplied team beats byline derivation (the client
+  // deck names the TD seven with proper roles; bylines lose roles entirely).
+  if (primarySource === "travel-daily") {
+    return { team: [...TD_FALLBACK_TEAM], source: "fallback" };
+  }
+
+  // 3. Byline-derived roster RPC (names only).
   try {
     const { data, error } = await supabase.rpc("bpg_newsroom_roster", {
       p_sources: [primarySource],
@@ -516,10 +544,6 @@ async function fetchTeam(
     // fall through
   }
 
-  // 3. Publisher-supplied fallback — the Travel Daily seven.
-  if (primarySource === "travel-daily") {
-    return { team: [...TD_FALLBACK_TEAM], source: "fallback" };
-  }
   return { team: [], source: "none" };
 }
 
@@ -593,6 +617,10 @@ export async function assembleBriefData(
     throw new Error(coverageRes.error.message);
   }
   const coverage = coverageRes.data as Coverage;
+  // WordPress leaves HTML entities in titles — decode once, centrally.
+  for (const a of coverage.top_articles || []) a.title = decodeHtmlEntities(a.title);
+  for (const u of coverage.unique_coverage || []) u.canonical_title = decodeHtmlEntities(u.canonical_title);
+  for (const mc of coverage.missed_coverage || []) mc.canonical_title = decodeHtmlEntities(mc.canonical_title);
 
   const contentVolume: PubStat[] = (
     (pubStatsRes.error ? [] : pubStatsRes.data || []) as Array<
@@ -627,7 +655,7 @@ export async function assembleBriefData(
   ).map((r) => ({
     published_at: String(r.published_at || ""),
     source_id: String(r.source_id),
-    title: String(r.title || ""),
+    title: decodeHtmlEntities(String(r.title || "")),
     url: String(r.url || ""),
     word_count: Number(r.word_count) || 0,
     is_sponsored: Boolean(r.is_sponsored),

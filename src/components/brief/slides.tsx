@@ -428,11 +428,11 @@ export function S10UniqueSlide({ data }: { data: BriefDeckData }) {
     <SlideShell
       number={10}
       title="Unique coverage"
-      subtitle={`Stories only BPG ran — ${c.unique_coverage.length} in last ${c.period_days} days`}
+      subtitle={`Stories only BPG ran — ${c.unique_coverage_count ?? c.unique_coverage.length} in last ${c.period_days} days`}
     >
       <div className="grid grid-cols-4 gap-4 mb-4 text-center">
         <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{c.unique_coverage.length}</div>
+          <div className="text-2xl font-semibold">{c.unique_coverage_count ?? c.unique_coverage.length}</div>
           <div className="text-xs text-muted mt-1">BPG-only</div>
         </div>
         <div className="rounded-md bg-surface p-3">
@@ -440,12 +440,18 @@ export function S10UniqueSlide({ data }: { data: BriefDeckData }) {
           <div className="text-xs text-muted mt-1">Shared</div>
         </div>
         <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{c.missed_coverage.length}</div>
+          <div className="text-2xl font-semibold">{c.missed_coverage_count ?? c.missed_coverage.length}</div>
           <div className="text-xs text-muted mt-1">Missed (competitor only)</div>
         </div>
         <div className="rounded-md bg-surface p-3">
-          <div className="text-2xl font-semibold">{bpgFirstPct}%</div>
-          <div className="text-xs text-muted mt-1">BPG-first rate</div>
+          <div className="text-2xl font-semibold">
+            {c.first_to_publish.total_shared >= 3 ? `${bpgFirstPct}%` : "—"}
+          </div>
+          <div className="text-xs text-muted mt-1">
+            {c.first_to_publish.total_shared >= 3
+              ? "BPG-first rate"
+              : `BPG-first rate (only ${c.first_to_publish.total_shared} shared)`}
+          </div>
         </div>
       </div>
       {uniqueCoverageAllZero(c) ? (
