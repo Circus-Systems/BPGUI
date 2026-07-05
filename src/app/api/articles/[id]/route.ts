@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { decodeHtmlEntities } from "@/lib/brief-deck";
 
 export async function GET(
   _request: NextRequest,
@@ -35,5 +36,13 @@ export async function GET(
     .eq("external_id", data.external_id)
     .order("mention_count", { ascending: false });
 
-  return NextResponse.json({ article: data, entities: entityRows || [] });
+  return NextResponse.json({
+    article: {
+      ...data,
+      title: decodeHtmlEntities(data.title || ""),
+      excerpt: decodeHtmlEntities(data.excerpt || ""),
+      content_text: decodeHtmlEntities(data.content_text || ""),
+    },
+    entities: entityRows || [],
+  });
 }
