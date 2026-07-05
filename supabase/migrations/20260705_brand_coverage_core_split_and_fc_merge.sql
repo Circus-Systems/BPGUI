@@ -1,0 +1,28 @@
+-- Applied to Supabase project BPG on 2026-07-05 (via MCP); version-controlled record.
+--
+-- 1. brand_coverage split into wrapper + core:
+--    - public.brand_coverage_core(...) = the full materiality-floored body
+--      (see brand_coverage_materiality_floor migration), EXECUTE revoked from
+--      anon/authenticated (the wrapper is the public API and, being SECURITY
+--      DEFINER, runs core as owner).
+--    - public.brand_coverage(...) = wrapper adding UNCAPPED
+--      unique_coverage_count + missed_coverage_count to the payload. The
+--      unique_coverage/missed_coverage LISTS remain capped at 30 rows; the
+--      deck's slide-10 stat boxes previously displayed list length, silently
+--      capping "Missed" at 30.
+--    NOTE: the wrapper was applied ~90s before core existed (wrong order),
+--    briefly breaking brand_coverage in prod. Lesson recorded: create the
+--    callee first.
+--
+-- 2. Flight Centre family merge (brand registry data fix):
+--    aliases {Flight Centre, Flight Centre Travel Group, FCTG, Flight Centre
+--    Group} -> one canonical 'Flight Centre' brand (is_bpg_client=true);
+--    2,326 article_entities rows relinked; FC Corporate / Foundation / NZ
+--    deliberately kept separate pending TD sign-off. Effect: FC 365d material
+--    coverage 118 -> 299 articles (TD coverage 26 -> 151).
+--
+-- Companion UI changes (same date): 20-slide deck polish — TD navy/rose-gold
+-- palette, "Slide N" chips removed, curated TD editorial team, HTML-entity
+-- decoding of article titles, uncapped S10 stats, BPG-first-rate guard for
+-- tiny shared denominators, PPTX builder extracted to src/lib/brief-pptx.ts
+-- with scripts/render-brief.ts for CLI generation.
