@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/publications", label: "Publications" },
   { href: "/brief", label: "Briefs" },
   { href: "/generator", label: "Generator" },
+  { href: "/help", label: "Help" },
 ];
 
 export function NavBar({ displayName }: { displayName: string | null }) {
