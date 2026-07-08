@@ -29,7 +29,7 @@ export async function GET(
     );
   }
 
-  const pptx = await buildDeck(data);
+  const pptx = await buildDeck(data, { assetOrigin: request.nextUrl.origin });
   const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
 
   const filename = deckFilename(data.brand, data.host.slug, period);

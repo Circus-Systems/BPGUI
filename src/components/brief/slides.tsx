@@ -61,28 +61,38 @@ function PromoFootnote({ hostTitle }: { hostTitle: string }) {
   );
 }
 
+/**
+ * Full-bleed render of a page from the Travel Daily–designed template deck
+ * (public/brief-assets). Keeps the web preview visually identical to the
+ * exported PPTX, which embeds the same renders.
+ */
+function TemplateSlide({ img, alt, overlay }: { img: string; alt: string; overlay?: React.ReactNode }) {
+  return (
+    <section className="brief-slide relative mb-6 overflow-hidden rounded-lg break-after-page">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/brief-assets/${img}`} alt={alt} className="w-full" />
+      {overlay}
+    </section>
+  );
+}
+
+/** Brand name over the template's "Partner logo" placeholder (S1/S20). */
+function PartnerNameOverlay({ brand }: { brand: string }) {
+  return (
+    <div className="absolute inset-x-0 flex items-center justify-center" style={{ top: "69.9%", height: "12.7%" }}>
+      <div className="flex h-full min-w-[34%] items-center justify-center px-8" style={{ backgroundColor: "#181545" }}>
+        <span className="italic font-bold text-white" style={{ fontSize: "clamp(14px, 2.6vw, 34px)" }}>{brand}</span>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // S1 — Title
 // ---------------------------------------------------------------------------
 
 export function S1TitleSlide({ data }: { data: BriefDeckData }) {
-  return (
-    <section className="brief-slide break-after-page bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] text-white rounded-lg p-12 mb-6 print:rounded-none print:min-h-[210mm] print:flex print:flex-col print:justify-center">
-      <div className="text-xs uppercase tracking-widest text-blue-300 font-semibold">
-        {data.host.title_name}
-      </div>
-      <h1 className="text-4xl font-semibold mt-3">Key Partner Annual Meeting</h1>
-      <p className="text-2xl mt-3 opacity-90">{data.brand}</p>
-      <p className="mt-6 text-sm opacity-70">
-        Last {data.period_days} days · Prepared{" "}
-        {new Date(data.generated_at).toLocaleDateString("en-AU")} by Business
-        Publishing Group
-      </p>
-      <div className="mt-12 inline-flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-slate-400/60 text-xs italic text-slate-400">
-        Partner logo
-      </div>
-    </section>
-  );
+  return <TemplateSlide img="s01.jpg" alt="Key Partner Annual Meeting" overlay={<PartnerNameOverlay brand={data.brand} />} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,57 +100,15 @@ export function S1TitleSlide({ data }: { data: BriefDeckData }) {
 // ---------------------------------------------------------------------------
 
 export function S2ContentsSlide() {
-  return (
-    <SlideShell number={2} title="Contents">
-      <ol className="space-y-3 max-w-xl">
-        {CONTENTS_ITEMS.map((item, i) => (
-          <li
-            key={item}
-            className="flex items-center gap-4 rounded-md bg-surface border border-border px-4 py-3"
-          >
-            <span className="text-xl font-semibold text-accent">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <span className="text-base font-medium text-foreground">{item}</span>
-          </li>
-        ))}
-      </ol>
-    </SlideShell>
-  );
+  return <TemplateSlide img="s02.jpg" alt="Contents" />;
 }
 
 // ---------------------------------------------------------------------------
 // S3 — Readership
 // ---------------------------------------------------------------------------
 
-export function S3ReadershipSlide({ data }: { data: BriefDeckData }) {
-  return (
-    <SlideShell
-      number={3}
-      title="Readership"
-      subtitle={`${data.host.title_name} audience reach`}
-    >
-      <div className="grid grid-cols-3 gap-4">
-        {READERSHIP_STATS.map((s) => (
-          <div key={s.label} className="rounded-md bg-surface border border-border p-4">
-            <div className="text-3xl font-semibold text-accent">{s.value}</div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-foreground mt-2">
-              {s.label}
-            </div>
-            <div className="text-xs text-muted mt-1">{s.detail}</div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-6 space-y-2">
-        {READERSHIP_QUOTES.map((q) => (
-          <p key={q} className="text-lg italic text-foreground">
-            &ldquo;{q}&rdquo;
-          </p>
-        ))}
-      </div>
-      <p className="mt-6 text-[10px] text-muted italic">{READERSHIP_SOURCE_NOTE}</p>
-    </SlideShell>
-  );
+export function S3ReadershipSlide(_props: { data: BriefDeckData }) {
+  return <TemplateSlide img="s03.jpg" alt="Readership" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,89 +116,15 @@ export function S3ReadershipSlide({ data }: { data: BriefDeckData }) {
 // ---------------------------------------------------------------------------
 
 export function S4AudienceSlide() {
-  const segments = AUDIENCE_SEGMENTS.map((s) => ({ ...s }));
-  return (
-    <SlideShell
-      number={4}
-      title="Our audience"
-      subtitle="Subscriber composition (publisher-supplied)"
-    >
-      <ResponsiveContainer width="100%" height={340}>
-        <PieChart>
-          <Pie
-            data={segments}
-            dataKey="pct"
-            nameKey="name"
-            cx="40%"
-            cy="50%"
-            outerRadius={130}
-          >
-            {segments.map((s, i) => (
-              <Cell key={s.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v) => `${v}%`} />
-          <Legend
-            layout="vertical"
-            align="right"
-            verticalAlign="middle"
-            wrapperStyle={{ fontSize: 12 }}
-            formatter={(value) => {
-              const seg = AUDIENCE_SEGMENTS.find((s) => s.name === value);
-              return `${value} — ${seg?.pct ?? ""}%`;
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-    </SlideShell>
-  );
+  return <TemplateSlide img="s04.jpg" alt="Audience" />;
 }
 
 // ---------------------------------------------------------------------------
 // S5 — Editorial team
 // ---------------------------------------------------------------------------
 
-export function S5TeamSlide({ data }: { data: BriefDeckData }) {
-  const note =
-    data.teamSource === "roster"
-      ? "Derived from published bylines."
-      : data.teamSource === "fallback"
-        ? "Publisher-supplied roster."
-        : null;
-  return (
-    <SlideShell
-      number={5}
-      title="Our editorial team"
-      subtitle={`The ${data.host.title_name} newsroom`}
-    >
-      {data.team.length === 0 ? (
-        <Pending text="Editorial roster pending — supply via Admin > Journalists." />
-      ) : (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {data.team.slice(0, 12).map((m) => (
-              <div key={m.name} className="rounded-md border border-border p-3">
-                <div
-                  className="h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm mb-2"
-                  style={{ backgroundColor: "#1e3a5f" }}
-                >
-                  {m.name
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((p) => p[0])
-                    .join("")
-                    .toUpperCase()}
-                </div>
-                <p className="text-sm font-medium text-foreground">{m.name}</p>
-                <p className="text-xs text-muted mt-0.5">{m.role}</p>
-              </div>
-            ))}
-          </div>
-          {note && <p className="mt-3 text-[10px] text-muted italic">{note}</p>}
-        </>
-      )}
-    </SlideShell>
-  );
+export function S5TeamSlide(_props: { data: BriefDeckData }) {
+  return <TemplateSlide img="s05.jpg" alt="Our editorial team" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,21 +132,7 @@ export function S5TeamSlide({ data }: { data: BriefDeckData }) {
 // ---------------------------------------------------------------------------
 
 export function S6RespectedSlide() {
-  return (
-    <SlideShell number={6} title="Respected across the industry" subtitle="What partners say">
-      <div className="grid grid-cols-2 gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="rounded-md bg-surface border border-dashed border-border p-6 min-h-[110px]"
-          >
-            <div className="text-2xl text-slate-300 font-semibold leading-none">&ldquo;&nbsp;&rdquo;</div>
-            <p className="mt-3 text-sm italic text-muted">Testimonial — TD to supply</p>
-          </div>
-        ))}
-      </div>
-    </SlideShell>
-  );
+  return <TemplateSlide img="s06.jpg" alt="Respected" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -852,17 +732,19 @@ export function S16CampaignYtdSlide({ data }: { data: BriefDeckData }) {
 
 export function S17RecommendationsSlide({ data }: { data: BriefDeckData }) {
   return (
-    <SlideShell
-      number={17}
-      title="Optimisation & recommendations"
-      subtitle={`Prepared for ${data.brand}`}
-    >
-      <RecommendationsEditor
-        hostSlug={data.host.slug}
-        brand={data.brand}
-        initialMd={data.recommendationsMd}
-      />
-    </SlideShell>
+    <>
+      <TemplateSlide img="s17.jpg" alt="Optimisation and recommendations" />
+      <div className="mb-6 rounded-lg border border-border bg-white p-5">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          Slide 17 content — flows into the exported deck
+        </p>
+        <RecommendationsEditor
+          hostSlug={data.host.slug}
+          brand={data.brand}
+          initialMd={data.recommendationsMd}
+        />
+      </div>
+    </>
   );
 }
 
@@ -870,17 +752,8 @@ export function S17RecommendationsSlide({ data }: { data: BriefDeckData }) {
 // S18 — Proposal
 // ---------------------------------------------------------------------------
 
-export function S18ProposalSlide({ data }: { data: BriefDeckData }) {
-  return (
-    <SlideShell number={18} title="Proposal">
-      <div className="rounded-md bg-surface border border-dashed border-border p-12 text-center">
-        <p className="text-lg italic text-muted">Proposal — TD to supply</p>
-        <p className="text-xs text-muted mt-2">
-          Commercial proposal for {data.brand} to be inserted before the meeting.
-        </p>
-      </div>
-    </SlideShell>
-  );
+export function S18ProposalSlide(_props: { data: BriefDeckData }) {
+  return <TemplateSlide img="s18.jpg" alt="Proposal" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -888,23 +761,7 @@ export function S18ProposalSlide({ data }: { data: BriefDeckData }) {
 // ---------------------------------------------------------------------------
 
 export function S19LookingAheadSlide() {
-  return (
-    <SlideShell number={19} title="Looking ahead">
-      <div className="space-y-3">
-        {LOOKING_AHEAD_ITEMS.map((item) => (
-          <div
-            key={item.title}
-            className="flex items-baseline gap-4 rounded-md bg-surface border border-border px-4 py-3"
-          >
-            <span className="text-sm font-semibold text-foreground min-w-[160px]">
-              {item.title}
-            </span>
-            <span className="text-sm text-muted">{item.detail}</span>
-          </div>
-        ))}
-      </div>
-    </SlideShell>
-  );
+  return <TemplateSlide img="s19.jpg" alt="Looking ahead" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -912,15 +769,5 @@ export function S19LookingAheadSlide() {
 // ---------------------------------------------------------------------------
 
 export function S20ThankYouSlide({ data }: { data: BriefDeckData }) {
-  return (
-    <section className="brief-slide bg-gradient-to-br from-[#0b1220] to-[#1e3a5f] text-white rounded-lg p-12 mb-6 print:rounded-none print:min-h-[210mm] print:flex print:flex-col print:justify-center">
-      <h2 className="text-4xl font-semibold">Thank you for your partnership</h2>
-      <p className="mt-3 text-sm opacity-70">
-        {data.host.title_name} × {data.brand}
-      </p>
-      <div className="mt-12 inline-flex h-24 w-48 items-center justify-center rounded-md border border-dashed border-slate-400/60 text-xs italic text-slate-400">
-        Partner logo
-      </div>
-    </section>
-  );
+  return <TemplateSlide img="s20.jpg" alt="Thank you for your partnership" overlay={<PartnerNameOverlay brand={data.brand} />} />;
 }
