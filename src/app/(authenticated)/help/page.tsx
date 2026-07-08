@@ -17,7 +17,9 @@ const SECTIONS = [
   { id: "sitemap", label: "Site map" },
 ];
 
-const TRACKED_PUBS: Array<[string, string, boolean]> = [
+// [name, vertical, isBpgTitle, paused?] — `paused` = configured but not
+// currently collecting, so it contributes no coverage.
+const TRACKED_PUBS: Array<[string, string, boolean, boolean?]> = [
   ["Travel Daily", "travel", true],
   ["Cruise Weekly", "cruise", true],
   ["Pharmacy Daily", "pharmacy", true],
@@ -28,7 +30,7 @@ const TRACKED_PUBS: Array<[string, string, boolean]> = [
   ["Travel Monitor", "travel", false],
   ["Travel Today NZ", "travel", false],
   ["Global Travel Media", "travel", false],
-  ["TravelTalk", "travel", false],
+  ["TravelTalk", "travel", false, true],
   ["Cruise Industry News", "cruise", false],
   ["Seatrade Cruise News", "cruise", false],
   ["AJP", "pharmacy", false],
@@ -185,8 +187,8 @@ const FAQ: Array<{ q: string; a: React.ReactNode }> = [
     q: "What do the “Exclusive” and “First to publish” badges mean?",
     a: (
       <p>
-        Every article is clustered with similar stories across all 14 tracked publications.{" "}
-        <strong>Exclusive</strong> = no other tracked publication ran the story at all.{" "}
+        Every article is clustered with similar stories across the actively-collected publications.{" "}
+        <strong>Exclusive</strong> = no other actively-collected publication ran the story at all.{" "}
         <strong>First to publish</strong> = others ran it, but this publication was earliest. Articles with no badge
         either shared the story without being first, or haven&apos;t been through clustering yet (new articles
         cluster within minutes).
@@ -210,7 +212,8 @@ const FAQ: Array<{ q: string; a: React.ReactNode }> = [
     q: "How fresh is the data?",
     a: (
       <p>
-        Articles are collected roughly every 15 minutes across all publications. New articles get fast placeholder
+        Articles are collected roughly every 15 minutes across the actively-collected publications (a few
+        low-volume feeds publish rarely, so they show long quiet stretches). New articles get fast placeholder
         brand tags within ~20 minutes and authoritative AI tags within the hour; story clustering runs every couple
         of minutes. Publication-level rollups in some pickers refresh nightly, so a brand-new brand can take up to a
         day to appear in dropdowns while its articles are already searchable.
@@ -307,8 +310,9 @@ export default function HelpPage() {
         <h2 className="text-lg font-semibold text-foreground mb-3">What is this platform?</h2>
         <div className="rounded-lg border border-border bg-white p-5 text-sm text-foreground space-y-3">
           <p>
-            The <strong>BPG Intelligence Platform</strong> continuously monitors {TRACKED_PUBS.length} Australian
-            and New Zealand trade publications across travel, cruise and pharmacy. It collects every article,
+            The <strong>BPG Intelligence Platform</strong> tracks {TRACKED_PUBS.length} Australian
+            and New Zealand trade publications across travel, cruise and pharmacy, and continuously collects from
+            those that are actively publishing into the feed. It collects every article,
             identifies which brands, destinations and industry bodies each one covers, detects sponsored content,
             and clusters the same story across publications so we know who ran it exclusively and who ran it first.
           </p>
@@ -323,20 +327,25 @@ export default function HelpPage() {
           <div>
             <p className="font-medium mb-2">Publications tracked</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
-              {TRACKED_PUBS.map(([name, vertical, own]) => (
+              {TRACKED_PUBS.map(([name, vertical, own, paused]) => (
                 <div key={name} className="flex items-center gap-2 text-xs">
                   <span
-                    className={`inline-block h-2 w-2 rounded-full ${own ? "bg-accent" : "bg-border"}`}
-                    title={own ? "BPG title" : "Competitor"}
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      paused ? "bg-transparent border border-muted" : own ? "bg-accent" : "bg-border"
+                    }`}
+                    title={paused ? "Not currently collecting" : own ? "BPG title" : "Competitor"}
                   />
-                  <span className="text-foreground">{name}</span>
+                  <span className={paused ? "text-muted" : "text-foreground"}>{name}</span>
                   <span className="text-muted">{vertical}</span>
+                  {paused && <span className="text-muted italic">· paused</span>}
                 </div>
               ))}
             </div>
             <p className="mt-2 text-xs text-muted">
               <span className="inline-block h-2 w-2 rounded-full bg-accent mr-1" /> BPG titles ·{" "}
-              <span className="inline-block h-2 w-2 rounded-full bg-border mx-1" /> competitors
+              <span className="inline-block h-2 w-2 rounded-full bg-border mx-1" /> competitors ·{" "}
+              <span className="inline-block h-2 w-2 rounded-full bg-transparent border border-muted mx-1" /> not
+              currently collecting
             </p>
           </div>
         </div>
