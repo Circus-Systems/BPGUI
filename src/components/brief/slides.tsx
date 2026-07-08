@@ -42,9 +42,21 @@ import {
  * assembly used by the PPTX export, so preview and deck cannot drift.
  */
 
+// Travel Daily deck chart palette — must mirror CHART_MORE in brief-pptx.ts so
+// the web preview and the downloaded deck are visually identical (pixel-sampled
+// from Kristen's template: navy / blush / sage trio, host pinned to navy).
+const TD_NAVY = "#40699C";
+const CHART_PALETTE = [
+  "#40699C", "#F1DCDB", "#EBF0DE", "#8FA3C8", "#C9AB9C", "#A3B18A", "#6B7280",
+];
+/** Colour for bar i, with the host bar always the template navy. */
+function barFill(i: number, isHost: boolean): string {
+  return isHost ? TD_NAVY : CHART_PALETTE[i % CHART_PALETTE.length];
+}
+
 const PIE_COLORS = [
-  "#2563EB", "#7C3AED", "#0891B2", "#D97706", "#059669", "#DC2626",
-  "#4F46E5", "#0D9488", "#9333EA", "#CA8A04", "#6B7280",
+  "#40699C", "#B08A78", "#F1DCDB", "#EBF0DE", "#8FA3C8", "#C9AB9C",
+  "#A3B18A", "#6B7280", "#4C5C96", "#D9C5B4", "#2A2A63",
 ];
 
 function Pending({ text }: { text: string }) {
@@ -165,8 +177,8 @@ export function S7ContentVolumeSlide({ data }: { data: BriefDeckData }) {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Bar dataKey="articles" name="Articles">
-                {rows.map((r) => (
-                  <Cell key={r.name} fill={r.isHost ? "#2563EB" : "#94A3B8"} />
+                {rows.map((r, i) => (
+                  <Cell key={r.name} fill={barFill(i, r.isHost)} />
                 ))}
               </Bar>
             </BarChart>
@@ -278,8 +290,8 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="articles" name="Articles">
-                  {rows.map((r) => (
-                    <Cell key={r.name} fill={r.isHost ? "#2563EB" : "#94A3B8"} />
+                  {rows.map((r, i) => (
+                    <Cell key={r.name} fill={barFill(i, r.isHost)} />
                   ))}
                 </Bar>
               </BarChart>
@@ -391,10 +403,10 @@ export function S11SovSlide({ data }: { data: BriefDeckData }) {
                   <YAxis type="category" dataKey="brand" width={140} tick={{ fontSize: 10 }} />
                   <Tooltip />
                   <Bar dataKey="count" name="Articles">
-                    {chart.rows.map((r) => (
+                    {chart.rows.map((r, i) => (
                       <Cell
                         key={r.brand}
-                        fill={r.brand === data.brand ? "#2563EB" : "#94A3B8"}
+                        fill={barFill(i, r.brand === data.brand)}
                       />
                     ))}
                   </Bar>
@@ -438,7 +450,11 @@ export function S12AdvSovSlide({ data }: { data: BriefDeckData }) {
                 tickFormatter={(v) => formatAudCompact(Number(v))}
               />
               <Tooltip formatter={(v) => AUD.format(Number(v))} />
-              <Bar dataKey="spend" name="Spend (AUD)" fill="#059669" />
+              <Bar dataKey="spend" name="Spend (AUD)">
+                {rows.map((r, i) => (
+                  <Cell key={r.name} fill={barFill(i, r.name === data.brand)} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
           <p className="mt-2 text-xs text-muted">
