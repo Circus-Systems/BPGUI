@@ -38,7 +38,13 @@ async function main() {
     `  coverage: ${data.coverage.summary.total_articles} articles · team source: ${data.teamSource}`
   );
 
-  const pptx = await buildDeck(data);
+  // Without assetOrigin, buildDeck silently skips the 10 template-page JPEGs
+  // and the TD logo (templateAsset() returns null) — the deck loses its
+  // artwork. Fetch them from prod unless overridden.
+  const pptx = await buildDeck(data, {
+    assetOrigin:
+      process.env.BRIEF_ASSET_ORIGIN || "https://bpg.compoundlogic.ai",
+  });
   const buf = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
   const file = outPath || deckFilename(brandName, host, period);
   writeFileSync(file, buf);
