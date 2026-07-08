@@ -242,18 +242,21 @@ export const DEFAULT_HOST_SLUG = "travel-daily";
 
 /** Brand palette shared by web + PPTX (hex without leading #). */
 export const DECK_COLORS = {
-  // Travel Daily brand palette (matched to the TD Key Partner deck)
-  navy: "1B1B4A",
-  navyLight: "2A2A63",
-  accent: "1B1B4A",
+  // Travel Daily brand palette — pixel-sampled from the TD Key Partner deck
+  // (Kristen's PDF, July 2026). Do not eyeball-adjust; re-sample if the
+  // template changes.
+  navy: "181545",      // slide bg / boxes / headings ink
+  navyLight: "232052",
+  accent: "191545",
   tan: "B08A78",       // TD rose-gold — eyebrows/labels on navy
   tanLight: "C9AB9C",
-  chartNavy: "33518E", // TD series in comparison charts
-  chartBlush: "E8C9C4",
-  chartSage: "D6E4CF",
-  muted: "6B7280",
-  surface: "F3F4F6",
-  text: "111827",
+  chartNavy: "40699C", // series 1 (host) in comparison charts
+  chartBlush: "F1DCDB",// series 2
+  chartSage: "EBF0DE", // series 3
+  tableBlue: "4F81BC", // table borders / link text in tables
+  muted: "545454",     // subtitle / italic gray (sampled from DM Sans body)
+  surface: "FAFAFA",   // stat tiles
+  text: "191545",
   green: "059669",
   purple: "7C3AED",
   amber: "D97706",

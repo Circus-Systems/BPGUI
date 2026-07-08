@@ -1,10 +1,20 @@
 // Server-only PPTX builder for the 20-slide Key Partner Annual Meeting deck.
-// Extracted from the API route so scripts and future cron jobs can generate
-// decks directly.
+//
+// VISUAL PARITY (2026-07): the deck is styled to be indistinguishable from the
+// Travel Daily–designed template ("Key Partner Meeting Presentation" PDF):
+//  - The 10 fully-static template slides (1–6, 17–20) are embedded as
+//    full-bleed renders of the actual TD pages (public/brief-assets/sNN.jpg,
+//    2880×1620 @ ~200dpi), with dynamic overlays where needed: the partner
+//    name over the template's "Partner logo" placeholder (S1/S20) and the
+//    saved recommendations on S17's intentionally blank canvas.
+//  - The 10 data slides (7–16) are typeset in the template's own design
+//    system, pixel-sampled from the PDF: Calibri Bold 40pt headings in navy
+//    #191545 at (0.68", 0.5"), DM Sans–style subtitles in #545454 13.5pt,
+//    the classic chart trio #40699C/#F1DCDB/#EBF0DE, #4F81BC table borders,
+//    and the circular TD logo bottom-right.
+// Data comes from the same assembleBriefData() used by the web preview.
 import PptxGenJS from "pptxgenjs";
 import {
-  assembleBriefData,
-  deckFilename,
   formatAudCompact,
   formatPromoBand,
   insertionTotals,
@@ -16,651 +26,675 @@ import {
   uniqueCoverageAllZero,
   coverageVolumeRows,
   AUD,
-  AUDIENCE_SEGMENTS,
-  CONTENTS_ITEMS,
   DECK_COLORS,
-  DEFAULT_HOST_SLUG,
-  LOOKING_AHEAD_ITEMS,
-  READERSHIP_QUOTES,
-  READERSHIP_SOURCE_NOTE,
-  READERSHIP_STATS,
   type BriefDeckData,
   formatBonusValue,
 } from "@/lib/brief-deck";
 import { fetchOgImageData } from "@/lib/brief-og";
 
-/**
- * Generates the 20-slide Key Partner Annual Meeting deck (.pptx).
- *
- * Data comes from the same assembleBriefData() used by the /brief/[slug]
- * web preview, so the deck and the preview cannot drift.
- */
+// ---------------------------------------------------------------------------
+// Template design system (pixel-sampled from the TD PDF — do not eyeball-edit)
+// ---------------------------------------------------------------------------
 
-const NAVY = DECK_COLORS.navy;
-const ACCENT = DECK_COLORS.accent;
-const MUTED = DECK_COLORS.muted;
-const SURFACE = DECK_COLORS.surface;
-const TEXT = DECK_COLORS.text;
+const NAVY = DECK_COLORS.navy; // 181545
+const INK = DECK_COLORS.accent; // 191545 heading ink
+const SUB = DECK_COLORS.muted; // 545454 subtitle gray
+const TBL = DECK_COLORS.tableBlue; // 4F81BC table borders
+const TILE = DECK_COLORS.surface; // FAFAFA stat tiles
+const TILE_BORDER = "E7E7E7";
+const FONT = "Calibri";
+const CHART_TRIO = [DECK_COLORS.chartNavy, DECK_COLORS.chartBlush, DECK_COLORS.chartSage];
+const CHART_MORE = [...CHART_TRIO, "8FA3C8", "C9AB9C", "A3B18A", "6B7280"];
 
-const PIE_COLORS = [
-  "33518E", "B08A78", "E8C9C4", "D6E4CF", "2A2A63", "C9AB9C",
-  "8FA3C8", "6B7280", "A3B18A", "D9C5B4", "4C5C96",
-];
+const PAGE_W = 13.333;
+const PAGE_H = 7.5;
 
+// "Partner logo" placeholder geometry on S1/S20 (from the PDF text layer)
+const PARTNER_BOX = { x: 4.66, y: 5.24, w: 4.0, h: 0.95 };
 
-export async function buildDeck(d: BriefDeckData): Promise<PptxGenJS> {
+export interface BuildDeckOptions {
+  /** Origin to fetch template page renders from (e.g. request.nextUrl.origin). */
+  assetOrigin?: string;
+}
+
+// Module-level cache: template pages are identical for every deck.
+const assetCache = new Map<string, string>();
+
+async function templateAsset(origin: string | undefined, name: string): Promise<string | null> {
+  if (!origin) return null;
+  const key = `${origin}/${name}`;
+  if (assetCache.has(key)) return assetCache.get(key)!;
+  try {
+    const r = await fetch(`${origin}/brief-assets/${name}`, { cache: "force-cache" });
+    if (!r.ok) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    const mime = name.endsWith(".png") ? "png" : "jpeg";
+    const uri = `data:image/${mime};base64,${buf.toString("base64")}`;
+    assetCache.set(key, uri);
+    return uri;
+  } catch {
+    return null;
+  }
+}
+
+export async function buildDeck(d: BriefDeckData, opts: BuildDeckOptions = {}): Promise<PptxGenJS> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE"; // 13.333 x 7.5"
   pptx.title = `Key Partner Brief — ${d.brand}`;
   pptx.author = "Business Publishing Group";
   pptx.company = "BPG";
+  pptx.theme = { headFontFace: FONT, bodyFontFace: FONT };
 
-  slide1Title(pptx, d);
-  slide2Contents(pptx);
-  slide3Readership(pptx, d);
-  slide4Audience(pptx);
-  slide5Team(pptx, d);
-  slide6Respected(pptx);
-  slide7ContentVolume(pptx, d);
+  const origin = opts.assetOrigin;
+  const pages: Record<number, string | null> = {};
+  await Promise.all(
+    [1, 2, 3, 4, 5, 6, 17, 18, 19, 20].map(async (n) => {
+      pages[n] = await templateAsset(origin, `s${String(n).padStart(2, "0")}.jpg`);
+    })
+  );
+  const logo = await templateAsset(origin, "td-logo-circle.png");
+
+  slideTemplate(pptx, pages[1], (s) => overlayPartnerName(s, d.brand), navyFallback(d, "Key Partner Annual Meeting"));
+  slideTemplate(pptx, pages[2], undefined, whiteFallback("Contents"));
+  slideTemplate(pptx, pages[3], undefined, whiteFallback("Readership"));
+  slideTemplate(pptx, pages[4], undefined, whiteFallback("Audience"));
+  slideTemplate(pptx, pages[5], undefined, whiteFallback("Our Editorial Team"));
+  slideTemplate(pptx, pages[6], undefined, whiteFallback("Respected"));
+  slide7ContentVolume(pptx, d, logo);
   slide8TitleCard(pptx, d);
-  slide9Coverage(pptx, d);
-  slide10Unique(pptx, d);
-  slide11Sov(pptx, d);
-  slide12AdvSov(pptx, d);
-  await slide13Proof(pptx, d);
-  slide14AllProof(pptx, d);
-  slide15Campaign(pptx, d);
-  slide16CampaignYtd(pptx, d);
-  slide17Recommendations(pptx, d);
-  slide18Proposal(pptx, d);
-  slide19LookingAhead(pptx);
-  slide20ThankYou(pptx, d);
+  slide9Coverage(pptx, d, logo);
+  slide10Unique(pptx, d, logo);
+  slide11Sov(pptx, d, logo);
+  slide12AdvSov(pptx, d, logo);
+  await slide13Proof(pptx, d, logo);
+  slide14AllProof(pptx, d, logo);
+  slide15Campaign(pptx, d, logo);
+  slide16CampaignYtd(pptx, d, logo);
+  slideTemplate(pptx, pages[17], (s) => overlayRecommendations(s, d), whiteFallback("Optimisation and Recommendations"));
+  slideTemplate(pptx, pages[18], undefined, whiteFallback("Proposal"));
+  slideTemplate(pptx, pages[19], undefined, whiteFallback("Looking Ahead"));
+  slideTemplate(pptx, pages[20], (s) => overlayPartnerName(s, d.brand), navyFallback(d, "Thank you for your partnership"));
 
   return pptx;
 }
 
 // ---------------------------------------------------------------------------
-// Shared bits
+// Template-page slides
 // ---------------------------------------------------------------------------
 
-function addHeader(
-  s: PptxGenJS.Slide,
-  n: number,
-  title: string,
-  subtitle?: string
+function slideTemplate(
+  pptx: PptxGenJS,
+  pageUri: string | null | undefined,
+  overlay?: (s: PptxGenJS.Slide) => void,
+  fallback?: (s: PptxGenJS.Slide) => void
 ) {
+  const s = pptx.addSlide();
+  if (pageUri) {
+    s.addImage({ data: pageUri, x: 0, y: 0, w: PAGE_W, h: PAGE_H });
+    overlay?.(s);
+  } else {
+    fallback?.(s);
+    overlay?.(s);
+  }
+}
+
+/** Cover the template's italic "Partner logo" placeholder with the brand name. */
+function overlayPartnerName(s: PptxGenJS.Slide, brand: string) {
+  s.addShape("rect", {
+    x: PARTNER_BOX.x, y: PARTNER_BOX.y, w: PARTNER_BOX.w, h: PARTNER_BOX.h,
+    fill: { color: NAVY },
+  });
+  s.addText(brand, {
+    x: 1.67, y: PARTNER_BOX.y, w: 10, h: PARTNER_BOX.h,
+    align: "center", valign: "middle",
+    fontFace: FONT, fontSize: brand.length > 22 ? 28 : 36,
+    bold: true, italic: true, color: "FFFFFF",
+  });
+}
+
+/** S17 — typeset the saved recommendations onto the template's blank canvas. */
+function overlayRecommendations(s: PptxGenJS.Slide, d: BriefDeckData) {
+  if (!d.recommendationsMd) {
+    s.addText(
+      `Recommendations for ${d.brand} are being prepared by the ${d.host.title_name} team and will be presented at the meeting.`,
+      { x: 0.68, y: 1.7, w: 12, h: 0.5, fontFace: FONT, fontSize: 13.5, italic: true, color: SUB }
+    );
+    return;
+  }
+  const blocks = parseSimpleMd(d.recommendationsMd);
+  let y = 1.7;
+  for (const b of blocks) {
+    if (y > 6.9) break;
+    if (b.type === "p") {
+      s.addText(b.text, { x: 0.68, y, w: 12.2, h: 0.45, fontFace: FONT, fontSize: 13.5, color: "3A3A3A" });
+      y += 0.5;
+    } else {
+      for (const item of b.items) {
+        if (y > 6.9) break;
+        s.addText(item, {
+          x: 0.9, y, w: 12.0, h: 0.4, fontFace: FONT, fontSize: 12.5, color: "3A3A3A",
+          bullet: { code: "2022" },
+        });
+        y += 0.42;
+      }
+      y += 0.12;
+    }
+  }
+}
+
+// Fallbacks only fire if the template renders can't be fetched (broken deploy).
+function navyFallback(d: BriefDeckData, line: string) {
+  return (s: PptxGenJS.Slide) => {
+    s.background = { color: NAVY };
+    s.addText(d.host.title_name.toUpperCase(), {
+      x: 0, y: 2.2, w: PAGE_W, h: 0.5, align: "center",
+      fontFace: FONT, fontSize: 20, bold: true, color: "FFFFFF", charSpacing: 4,
+    });
+    s.addText(line, {
+      x: 0, y: 3.0, w: PAGE_W, h: 0.9, align: "center",
+      fontFace: FONT, fontSize: 40, bold: true, color: "FFFFFF",
+    });
+  };
+}
+
+function whiteFallback(title: string) {
+  return (s: PptxGenJS.Slide) => addHeading(s, title);
+}
+
+// ---------------------------------------------------------------------------
+// Shared typography for the data slides (matches the template system)
+// ---------------------------------------------------------------------------
+
+function addHeading(s: PptxGenJS.Slide, title: string, subtitle?: string, italicSub = false) {
   s.addText(title, {
-    x: 0.5, y: 0.6, w: 12, h: 0.6, fontSize: 24, bold: true, color: TEXT,
+    x: 0.68, y: 0.42, w: 12.2, h: 0.9,
+    fontFace: FONT, fontSize: 40, bold: true, color: INK,
   });
   if (subtitle) {
     s.addText(subtitle, {
-      x: 0.5, y: 1.2, w: 12, h: 0.4, fontSize: 12, color: MUTED,
+      x: 0.68, y: 1.5, w: 12.2, h: 0.38,
+      fontFace: FONT, fontSize: 13.5, color: SUB, italic: italicSub,
     });
   }
 }
 
-function pendingText(s: PptxGenJS.Slide, text: string, y = 1.9) {
-  s.addShape("rect", {
-    x: 0.5, y, w: 12.3, h: 0.9,
-    fill: { color: SURFACE },
-    line: { color: "E5E7EB", width: 1 },
-  });
+function addLogo(s: PptxGenJS.Slide, logo: string | null) {
+  if (logo) {
+    s.addImage({ data: logo, x: 12.25, y: 6.42, w: 0.88, h: 0.88 });
+  }
+}
+
+function pendingLine(s: PptxGenJS.Slide, text: string, y = 2.0) {
   s.addText(text, {
-    x: 0.8, y: y + 0.1, w: 11.7, h: 0.7, fontSize: 12, color: MUTED,
-    italic: true, valign: "middle",
+    x: 0.68, y, w: 12.2, h: 0.4, fontFace: FONT, fontSize: 13.5, italic: true, color: SUB,
   });
 }
 
-function logoPlaceholder(s: PptxGenJS.Slide, x: number, y: number) {
-  s.addShape("rect", {
-    x, y, w: 2.6, h: 1.4,
-    fill: { color: "FFFFFF", transparency: 88 },
-    line: { color: "94A3B8", width: 1, dashType: "dash" },
-  });
-  s.addText("Partner logo", {
-    x, y, w: 2.6, h: 1.4, align: "center", valign: "middle",
-    fontSize: 11, color: "CBD5E1", italic: true,
+const CHART_BASE = {
+  chartColors: CHART_TRIO,
+  showLegend: true,
+  legendPos: "b" as const,
+  legendFontFace: FONT,
+  legendFontSize: 11,
+  catAxisLabelFontFace: FONT,
+  catAxisLabelFontSize: 11,
+  catAxisLabelColor: "595959",
+  valAxisLabelFontFace: FONT,
+  valAxisLabelFontSize: 10,
+  valAxisLabelColor: "595959",
+  valGridLine: { color: "D9D9D9", style: "solid" as const, size: 0.5 },
+  catGridLine: { style: "none" as const },
+  showValue: true,
+  dataLabelFontFace: FONT,
+  dataLabelFontSize: 10,
+  dataLabelColor: "595959",
+  chartColorsOpacity: 100,
+  barGapWidthPct: 60,
+};
+
+function chartTitleText(s: PptxGenJS.Slide, text: string, x: number, y: number, w: number) {
+  s.addText(text, {
+    x, y, w, h: 0.32, align: "center",
+    fontFace: FONT, fontSize: 12, bold: true, color: "595959",
   });
 }
 
 // ---------------------------------------------------------------------------
-// Slides 1–20
+// S7 — Content Volume (template layout: heading, italic line, grouped bars)
 // ---------------------------------------------------------------------------
 
-function slide1Title(pptx: PptxGenJS, d: BriefDeckData) {
+function slide7ContentVolume(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
-  s.background = { color: NAVY };
-  s.addText(d.host.title_name.toUpperCase(), {
-    x: 0.6, y: 1.0, w: 9, h: 0.4,
-    fontSize: 14, color: DECK_COLORS.tanLight, bold: true, charSpacing: 6,
-  });
-  s.addText("Key Partner Annual Meeting", {
-    x: 0.6, y: 1.5, w: 12, h: 1.0, fontSize: 40, bold: true, color: "FFFFFF",
-  });
-  s.addText(d.brand, {
-    x: 0.6, y: 2.7, w: 12, h: 1.0, fontSize: 30, color: "E5E7EB",
-  });
-  s.addText(
-    `Last ${d.period_days} days · Prepared ${new Date(d.generated_at).toLocaleDateString("en-AU")} by Business Publishing Group`,
-    { x: 0.6, y: 3.8, w: 12, h: 0.4, fontSize: 12, color: "D1D5DB" }
-  );
-  logoPlaceholder(s, 10.1, 5.5);
-}
-
-function slide2Contents(pptx: PptxGenJS) {
-  const s = pptx.addSlide();
-  addHeader(s, 2, "Contents");
-  CONTENTS_ITEMS.forEach((item, i) => {
-    const y = 1.9 + i * 1.15;
-    s.addShape("rect", {
-      x: 0.5, y, w: 8.5, h: 0.95,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
-    });
-    s.addText(String(i + 1).padStart(2, "0"), {
-      x: 0.8, y: y + 0.15, w: 0.9, h: 0.6, fontSize: 24, bold: true, color: ACCENT,
-    });
-    s.addText(item, {
-      x: 1.8, y: y + 0.15, w: 6.9, h: 0.6, fontSize: 18, bold: true, color: TEXT,
-      valign: "middle",
-    });
-  });
-}
-
-function slide3Readership(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  addHeader(s, 3, "Readership", `${d.host.title_name} audience reach`);
-  READERSHIP_STATS.forEach((stat, i) => {
-    const x = 0.5 + i * 4.3;
-    s.addShape("rect", {
-      x, y: 1.9, w: 4.0, h: 2.0,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
-    });
-    s.addText(stat.value, {
-      x: x + 0.25, y: 2.1, w: 3.5, h: 0.7, fontSize: 34, bold: true, color: ACCENT,
-    });
-    s.addText(stat.label.toUpperCase(), {
-      x: x + 0.25, y: 2.85, w: 3.5, h: 0.3, fontSize: 11, bold: true,
-      color: TEXT, charSpacing: 3,
-    });
-    s.addText(stat.detail, {
-      x: x + 0.25, y: 3.15, w: 3.5, h: 0.6, fontSize: 10, color: MUTED,
-    });
-  });
-  READERSHIP_QUOTES.forEach((q, i) => {
-    s.addText(`“${q}”`, {
-      x: 0.5, y: 4.3 + i * 0.75, w: 12.3, h: 0.6,
-      fontSize: 18, italic: true, color: TEXT,
-    });
-  });
-  s.addText(READERSHIP_SOURCE_NOTE, {
-    x: 0.5, y: 6.7, w: 12.3, h: 0.4, fontSize: 9, color: MUTED, italic: true,
-  });
-}
-
-function slide4Audience(pptx: PptxGenJS) {
-  const s = pptx.addSlide();
-  addHeader(s, 4, "Our audience", "Subscriber composition (publisher-supplied)");
-  s.addChart(
-    pptx.ChartType.pie,
-    [
-      {
-        name: "Audience",
-        labels: AUDIENCE_SEGMENTS.map((a) => `${a.name} ${a.pct}%`),
-        values: AUDIENCE_SEGMENTS.map((a) => a.pct),
-      },
-    ],
-    {
-      x: 0.5, y: 1.7, w: 12.3, h: 5.4,
-      showLegend: true,
-      legendPos: "r",
-      legendFontSize: 10,
-      showPercent: false,
-      chartColors: PIE_COLORS,
-    }
-  );
-}
-
-function slide5Team(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  const sub =
-    d.teamSource === "roster"
-      ? `${d.host.title_name} bylines (derived from published articles)`
-      : `The ${d.host.title_name} newsroom`;
-  addHeader(s, 5, "Our editorial team", sub);
-
-  if (d.team.length === 0) {
-    pendingText(s, "Editorial roster pending — supply via Admin > Journalists.");
-    return;
-  }
-
-  const cols = 4;
-  const cellW = 3.0;
-  const cellH = 1.3;
-  d.team.slice(0, 12).forEach((m, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = 0.5 + col * (cellW + 0.2);
-    const y = 1.9 + row * (cellH + 0.25);
-    s.addShape("rect", {
-      x, y, w: cellW, h: cellH,
-      fill: { color: "FFFFFF" },
-      line: { color: "E5E7EB", width: 1 },
-    });
-    s.addText(m.name, {
-      x: x + 0.2, y: y + 0.2, w: cellW - 0.4, h: 0.4,
-      fontSize: 13, bold: true, color: TEXT,
-    });
-    s.addText(m.role, {
-      x: x + 0.2, y: y + 0.65, w: cellW - 0.4, h: 0.35,
-      fontSize: 10, color: MUTED,
-    });
-  });
-}
-
-function slide6Respected(pptx: PptxGenJS) {
-  const s = pptx.addSlide();
-  addHeader(s, 6, "Respected across the industry", "What partners say");
-  for (let i = 0; i < 4; i++) {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = 0.5 + col * 6.3;
-    const y = 1.9 + row * 2.5;
-    s.addShape("rect", {
-      x, y, w: 6.0, h: 2.2,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1, dashType: "dash" },
-    });
-    s.addText("“ ”", {
-      x: x + 0.3, y: y + 0.15, w: 1, h: 0.6, fontSize: 28, color: "CBD5E1", bold: true,
-    });
-    s.addText("Testimonial — TD to supply", {
-      x: x + 0.3, y: y + 0.9, w: 5.4, h: 0.5, fontSize: 12, italic: true, color: MUTED,
-    });
-  }
-}
-
-function slide7ContentVolume(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  addHeader(
-    s, 7,
-    "Content volume",
-    `Articles published — ${d.host.title_name} vs media competitors, last ${d.period_days} days`
-  );
-
   const set = mediaCompetitorSet(d.host);
   const byId = new Map(d.contentVolume.map((p) => [p.source_id, p]));
   const rows = set.map((src) => ({
     name: sourceLabel(src),
     count: byId.get(src)?.article_count || 0,
   }));
+  const host = rows[0];
+  const rivalsSorted = rows.slice(1).sort((a, b) => b.count - a.count);
+  const leads = host && rivalsSorted[0] && host.count > rivalsSorted[0].count;
+
+  addHeading(
+    s, "Content Volume",
+    leads
+      ? `${d.host.title_name} produces more articles than any other tracked ${d.host.vertical} trade publication`
+      : `Articles published — ${d.host.title_name} vs media competitors, last ${d.period_days} days`,
+    true
+  );
 
   if (d.contentVolume.length === 0) {
-    pendingText(s, "Content volume data pending for this period.");
+    pendingLine(s, "Content volume data pending for this period.");
+    addLogo(s, logo);
     return;
   }
 
+  chartTitleText(s, "Volume LTM", 0.68, 1.95, 11.4);
   s.addChart(
     pptx.ChartType.bar,
-    [
-      {
-        name: "Articles",
-        labels: rows.map((r) => r.name),
-        values: rows.map((r) => r.count),
-      },
-    ],
+    rows.map((r) => ({ name: r.name, labels: ["Articles"], values: [r.count] })),
     {
-      x: 0.5, y: 1.7, w: 12.3, h: 4.9,
+      ...CHART_BASE,
+      x: 0.9, y: 2.3, w: 11.0, h: 4.4,
       barDir: "col",
-      showLegend: false,
-      chartColors: [DECK_COLORS.chartNavy],
-      catAxisLabelFontSize: 9,
-      valAxisLabelFontSize: 9,
+      chartColors: CHART_MORE.slice(0, rows.length),
     }
   );
   s.addText("Social posting volumes: data pending (social capture not yet live).", {
-    x: 0.5, y: 6.8, w: 12.3, h: 0.35, fontSize: 9, color: MUTED, italic: true,
+    x: 0.68, y: 6.95, w: 11.4, h: 0.3, fontFace: FONT, fontSize: 9, color: SUB, italic: true,
   });
+  addLogo(s, logo);
 }
+
+// ---------------------------------------------------------------------------
+// S8 — Partner performance interstitial (navy, template title-slide language)
+// ---------------------------------------------------------------------------
 
 function slide8TitleCard(pptx: PptxGenJS, d: BriefDeckData) {
   const s = pptx.addSlide();
   s.background = { color: NAVY };
-  s.addText("PARTNER PERFORMANCE", {
-    x: 0.6, y: 1.0, w: 12, h: 0.4, fontSize: 12, color: DECK_COLORS.tanLight, bold: true, charSpacing: 6,
+  s.addText(d.host.title_name.toUpperCase(), {
+    x: 0, y: 1.15, w: PAGE_W, h: 0.4, align: "center",
+    fontFace: FONT, fontSize: 14, color: DECK_COLORS.tanLight, bold: true, charSpacing: 6,
   });
   s.addText(d.brand, {
-    x: 0.6, y: 1.5, w: 12, h: 1.1, fontSize: 48, bold: true, color: "FFFFFF",
+    x: 0, y: 1.75, w: PAGE_W, h: 1.05, align: "center",
+    fontFace: FONT, fontSize: 48, bold: true, color: "FFFFFF",
   });
   s.addText(
-    `Last ${d.period_days} days · Prepared ${new Date(d.generated_at).toLocaleDateString("en-AU")}`,
-    { x: 0.6, y: 2.8, w: 12, h: 0.4, fontSize: 13, color: "D1D5DB" }
+    `Last ${d.period_days} days · Prepared ${new Date(d.generated_at).toLocaleDateString("en-AU")} by Business Publishing Group`,
+    { x: 0, y: 2.95, w: PAGE_W, h: 0.4, align: "center", fontFace: FONT, fontSize: 13, color: "C9C7DD" }
   );
 
   const stats: Array<[string, string, string | null]> = [
     ["Total articles", String(d.coverage.summary.total_articles), null],
     [`${d.host.title_name} coverage`, String(d.coverage.summary.bpg_articles), null],
-    [
-      "Promotional value",
-      formatAudCompact(d.promotionalValue.mid),
-      `Range ${formatPromoBand(d.promotionalValue)}`,
-    ],
+    ["Promotional value", formatAudCompact(d.promotionalValue.mid), `Range ${formatPromoBand(d.promotionalValue)}`],
   ];
   stats.forEach(([k, v, sub], i) => {
-    const x = 0.6 + i * 4.3;
-    s.addText(v, { x, y: 4.4, w: 4.1, h: 0.8, fontSize: 32, bold: true, color: "FFFFFF" });
+    const x = 1.1 + i * 3.9;
+    s.addText(v, {
+      x, y: 4.15, w: 3.5, h: 0.85, align: "center",
+      fontFace: FONT, fontSize: 36, bold: true, color: "FFFFFF",
+    });
     s.addText(k.toUpperCase(), {
-      x, y: 5.3, w: 4.1, h: 0.35, fontSize: 10, color: "D1D5DB", charSpacing: 3,
+      x, y: 5.05, w: 3.5, h: 0.32, align: "center",
+      fontFace: FONT, fontSize: 10.5, color: "C9C7DD", charSpacing: 3,
     });
     if (sub) {
       s.addText(sub, {
-        x, y: 5.65, w: 4.1, h: 0.3, fontSize: 10, color: "9CA3AF",
+        x, y: 5.4, w: 3.5, h: 0.3, align: "center", fontFace: FONT, fontSize: 10, color: "9B98BC",
       });
     }
   });
-  s.addText(
-    `Midpoint ${AUD.format(d.promotionalValue.mid)}. ${promoFootnote(d.host.title_name)}`,
-    { x: 0.6, y: 6.6, w: 12.2, h: 0.5, fontSize: 9, color: "9CA3AF", italic: true }
-  );
+  s.addText(`Midpoint ${AUD.format(d.promotionalValue.mid)}. ${promoFootnote(d.host.title_name)}`, {
+    x: 0.9, y: 6.65, w: 11.5, h: 0.5, align: "center",
+    fontFace: FONT, fontSize: 9, color: "8B88AE", italic: true,
+  });
 }
 
-function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  addHeader(
-    s, 9,
-    "Your coverage",
-    `Editorial support for ${d.brand} — last ${d.period_days} days`
-  );
+// ---------------------------------------------------------------------------
+// S9 — Coverage (template layout: navy rounded box left, Volume LTM right)
+// ---------------------------------------------------------------------------
 
-  // Left stat box
+function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
+  const s = pptx.addSlide();
+  addHeading(s, "Coverage", "We have amplified your brand across our newsletter, social media and website");
+
+  // Left navy rounded box with the four headline stats (template S9)
+  s.addShape("roundRect", {
+    x: 0.68, y: 2.0, w: 3.85, h: 4.85, rectRadius: 0.18,
+    fill: { color: NAVY },
+  });
   const stats: Array<[string, string]> = [
     [String(d.coverage.summary.bpg_articles), "Articles"],
-    ["—", "Social media posts (data pending)"],
-    [String(d.coverage.events.length), "Events attended"],
-    [formatPromoBand(d.promotionalValue), "Promotional value"],
+    ["—", "Social Media Posts (pending)"],
+    [String(d.coverage.events.length), "Events Attended"],
+    [formatPromoBand(d.promotionalValue), "Promotional Value"],
   ];
   stats.forEach(([v, k], i) => {
-    const y = 1.9 + i * 1.2;
-    s.addShape("rect", {
-      x: 0.5, y, w: 3.6, h: 1.05,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
+    const y = 2.25 + i * 1.18;
+    s.addText(v, {
+      x: 0.83, y, w: 3.55, h: 0.5, align: "center",
+      fontFace: FONT, fontSize: v.length > 10 ? 16 : 24, bold: true, color: "FFFFFF",
     });
-    s.addText(v, { x: 0.7, y: y + 0.1, w: 3.2, h: 0.5, fontSize: 20, bold: true, color: TEXT });
-    s.addText(k, { x: 0.7, y: y + 0.62, w: 3.2, h: 0.35, fontSize: 9, color: MUTED });
+    s.addText(k, {
+      x: 0.83, y: y + 0.5, w: 3.55, h: 0.3, align: "center",
+      fontFace: FONT, fontSize: 11.5, color: "D8D6E8",
+    });
   });
 
-  // Right volume bars, host vs media competitors
+  // Right — Volume LTM, one coloured series per publication (template style)
   const rows = coverageVolumeRows(d);
   if (rows.every((r) => r.article_count === 0)) {
     s.addText("No brand coverage recorded across these publications in this period.", {
-      x: 4.5, y: 3.2, w: 8.3, h: 0.5, fontSize: 12, color: MUTED, italic: true,
+      x: 5.0, y: 3.4, w: 7.8, h: 0.5, fontFace: FONT, fontSize: 12.5, color: SUB, italic: true,
     });
   } else {
+    chartTitleText(s, "Volume LTM", 4.9, 2.0, 8.0);
     s.addChart(
       pptx.ChartType.bar,
-      [
-        {
-          name: "Articles",
-          labels: rows.map((r) => sourceLabel(r.source_id) + (r.is_host ? " (host)" : "")),
-          values: rows.map((r) => r.article_count),
-        },
-      ],
+      rows.map((r) => ({
+        name: sourceLabel(r.source_id),
+        labels: ["Articles"],
+        values: [r.article_count],
+      })),
       {
-        x: 4.4, y: 1.9, w: 8.4, h: 4.7,
+        ...CHART_BASE,
+        x: 5.0, y: 2.35, w: 7.9, h: 4.5,
         barDir: "col",
-        showLegend: false,
-        chartColors: [DECK_COLORS.chartNavy],
-        catAxisLabelFontSize: 9,
-        valAxisLabelFontSize: 9,
+        chartColors: CHART_MORE.slice(0, rows.length),
       }
     );
   }
   s.addText(promoFootnote(d.host.title_name), {
-    x: 0.5, y: 6.85, w: 12.3, h: 0.35, fontSize: 8, color: MUTED, italic: true,
+    x: 0.68, y: 7.02, w: 11.4, h: 0.3, fontFace: FONT, fontSize: 8, color: SUB, italic: true,
   });
+  addLogo(s, logo);
 }
 
-function slide10Unique(pptx: PptxGenJS, d: BriefDeckData) {
+// ---------------------------------------------------------------------------
+// S10 — Unique coverage (template layout: white card with four stat tiles)
+// ---------------------------------------------------------------------------
+
+function slide10Unique(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
   const c = d.coverage;
-  addHeader(
-    s, 10,
-    "Unique coverage",
-    `Stories only BPG ran — ${c.unique_coverage_count ?? c.unique_coverage.length} in last ${c.period_days} days`
-  );
+  addHeading(s, "Unique Coverage", "We have amplified your brand across our newsletter, social media and website");
 
+  const uniqueCount = c.unique_coverage_count ?? c.unique_coverage.length;
+  const missedCount = c.missed_coverage_count ?? c.missed_coverage.length;
   const bpgFirstPct =
     c.first_to_publish.total_shared > 0
       ? Math.round((c.first_to_publish.bpg_first / c.first_to_publish.total_shared) * 100)
       : 0;
-
   const enoughShared = c.first_to_publish.total_shared >= 3;
+
+  // Outer card
+  s.addShape("rect", {
+    x: 0.75, y: 2.3, w: 11.85, h: 3.55,
+    fill: { color: "FFFFFF" },
+    line: { color: "DDDDDD", width: 1 },
+    shadow: { type: "outer", blur: 6, offset: 1, angle: 90, color: "AAAAAA", opacity: 0.25 },
+  });
+  s.addText("Unique coverage", {
+    x: 1.15, y: 2.55, w: 8, h: 0.4, fontFace: FONT, fontSize: 15, bold: true, color: "1A1A1A",
+  });
+  s.addText(`Stories only BPG ran — ${uniqueCount} in last ${c.period_days} days`, {
+    x: 1.15, y: 2.95, w: 9, h: 0.32, fontFace: FONT, fontSize: 11, color: "8A8A8A",
+  });
+  s.addShape("line", {
+    x: 1.15, y: 3.45, w: 11.05, h: 0,
+    line: { color: "E5E5E5", width: 0.75 },
+  });
+
   const kpis: Array<[string, string]> = [
-    [String(c.unique_coverage_count ?? c.unique_coverage.length), "BPG-only"],
+    [String(uniqueCount), "BPG-only"],
     [String(c.shared_coverage_count), "Shared"],
-    [String(c.missed_coverage_count ?? c.missed_coverage.length), "Missed (competitor only)"],
+    [String(missedCount), "Missed (competitor only)"],
     [
       enoughShared ? `${bpgFirstPct}%` : "—",
-      enoughShared
-        ? "BPG-first rate"
-        : `BPG-first rate (only ${c.first_to_publish.total_shared} shared)`,
+      enoughShared ? "BPG-first rate" : `BPG-first rate (only ${c.first_to_publish.total_shared} shared)`,
     ],
   ];
   kpis.forEach(([v, k], i) => {
-    const x = 0.5 + i * 3.2;
+    const x = 1.15 + i * 2.83;
     s.addShape("rect", {
-      x, y: 1.9, w: 2.9, h: 1.0,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
+      x, y: 3.7, w: 2.63, h: 1.75,
+      fill: { color: TILE },
+      line: { color: TILE_BORDER, width: 0.75 },
     });
-    s.addText(v, { x: x + 0.1, y: 2.0, w: 2.7, h: 0.5, fontSize: 24, bold: true, color: TEXT });
-    s.addText(k, { x: x + 0.1, y: 2.5, w: 2.7, h: 0.3, fontSize: 10, color: MUTED });
+    s.addText(v, {
+      x, y: 4.0, w: 2.63, h: 0.6, align: "center",
+      fontFace: FONT, fontSize: 26, bold: true, color: "1A1A1A",
+    });
+    s.addText(k, {
+      x: x + 0.1, y: 4.7, w: 2.43, h: 0.55, align: "center",
+      fontFace: FONT, fontSize: 10, color: "8A8A8A",
+    });
   });
 
   if (uniqueCoverageAllZero(c)) {
     s.addText("Story-clustering backfill in progress — figures will populate as clusters build.", {
-      x: 0.5, y: 3.2, w: 12.3, h: 0.4, fontSize: 10, color: MUTED, italic: true,
-    });
-    return;
-  }
-
-  const rows: PptxGenJS.TableRow[] = [
-    [
-      { text: "Date", options: { bold: true, fill: { color: SURFACE } } },
-      { text: "Story", options: { bold: true, fill: { color: SURFACE } } },
-      { text: "BPG sources", options: { bold: true, fill: { color: SURFACE } } },
-    ],
-  ];
-  for (const u of c.unique_coverage.slice(0, 9)) {
-    rows.push([
-      { text: new Date(u.first_published_at).toLocaleDateString("en-AU"), options: { fontSize: 9 } },
-      { text: u.canonical_title, options: { fontSize: 9 } },
-      { text: u.sources.map(sourceLabel).join(", "), options: { fontSize: 9 } },
-    ]);
-  }
-  if (rows.length > 1) {
-    s.addTable(rows, {
-      x: 0.5, y: 3.2, w: 12.3,
-      colW: [1.4, 7.5, 3.4],
-      border: { type: "solid", color: "E5E7EB", pt: 0.5 },
+      x: 0.75, y: 6.1, w: 11.85, h: 0.35, fontFace: FONT, fontSize: 10, color: SUB, italic: true,
     });
   }
+  addLogo(s, logo);
 }
 
-function slide11Sov(pptx: PptxGenJS, d: BriefDeckData) {
+// ---------------------------------------------------------------------------
+// S11 — Share of Voice by Category (template: italic claim lines + % charts)
+// ---------------------------------------------------------------------------
+
+function slide11Sov(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
-  const demoTag =
-    d.rivals?.source_of_truth === "demo" ? " (demo matrix)" : "";
-  addHeader(
-    s, 11,
-    "Share of voice by category" + demoTag,
-    d.rivals
-      ? `${d.brand} vs ${d.rivals.rivals.join(", ")} — last ${d.period_days} days`
-      : undefined
-  );
+  const demoTag = d.rivals?.source_of_truth === "demo" ? "  (demo matrix)" : "";
+  addHeading(s, "Share of Voice by Category" + demoTag);
 
   if (!d.rivals || d.rivals.rivals.length === 0) {
-    pendingText(s, "Share of voice pending — TD to supply competitor matrix.");
+    pendingLine(s, `Share of voice pending — ${d.host.title_name} to supply the competitor matrix.`, 1.6);
+    addLogo(s, logo);
     return;
   }
 
   const charts = sovChartsBySource(d);
   if (charts.length === 0) {
-    pendingText(s, "No category coverage found for this competitor set in the period.");
+    pendingLine(s, "No category coverage found for this competitor set in the period.", 1.6);
+    addLogo(s, logo);
     return;
   }
 
-  const shown = charts.slice(0, 4);
-  const cols = shown.length > 1 ? 2 : 1;
-  const chartW = cols === 2 ? 6.0 : 12.3;
-  const chartH = shown.length > 2 ? 2.55 : 5.0;
+  // Italic claim lines (template S11 style), one per publication shown
+  const shown = charts.slice(0, 2);
   shown.forEach((chart, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = 0.5 + col * 6.3;
-    const y = 1.8 + row * (chartH + 0.35);
-    s.addText(sourceLabel(chart.source_id), {
-      x, y: y - 0.05, w: chartW, h: 0.3, fontSize: 11, bold: true, color: TEXT,
+    const total = chart.rows.reduce((t, r) => t + r.count, 0) || 1;
+    const sorted = [...chart.rows].sort((a, b) => b.count - a.count);
+    const brandRow = chart.rows.find((r) => r.brand === d.brand) || chart.rows[0];
+    const bestOther = sorted.find((r) => r.brand !== d.brand);
+    let line: string;
+    if (!bestOther || bestOther.count === 0) {
+      line = `${d.brand} is the only brand in this set covered in ${sourceLabel(chart.source_id)} this period`;
+    } else if (brandRow.count >= bestOther.count) {
+      const diff = Math.round(((brandRow.count - bestOther.count) / Math.max(bestOther.count, 1)) * 100);
+      line = `${d.brand} receives ${diff}% more coverage in ${sourceLabel(chart.source_id)} than your nearest competitor`;
+    } else {
+      const diff = Math.round(((bestOther.count - brandRow.count) / Math.max(brandRow.count, 1)) * 100);
+      line = `${bestOther.brand} receives ${diff}% more coverage in ${sourceLabel(chart.source_id)} than ${d.brand}`;
+    }
+    s.addText(line, {
+      x: 0.68, y: 1.5 + i * 0.38, w: 12.2, h: 0.36,
+      fontFace: FONT, fontSize: 13.5, italic: true, color: SUB,
     });
+    void total;
+  });
+
+  // Side-by-side percentage charts (template S11 composition)
+  const cols = shown.length;
+  const chartW = cols === 2 ? 5.85 : 9.0;
+  shown.forEach((chart, i) => {
+    const x = cols === 2 ? 0.75 + i * 6.15 : 2.1;
+    const total = chart.rows.reduce((t, r) => t + r.count, 0) || 1;
+    chartTitleText(s, `${sourceLabel(chart.source_id)} Volume LTM`, x, 2.55, chartW);
     s.addChart(
       pptx.ChartType.bar,
-      [
-        {
-          name: "Articles",
-          labels: chart.rows.map((r) => r.brand),
-          values: chart.rows.map((r) => r.count),
-        },
-      ],
+      chart.rows.map((r) => ({
+        name: r.brand,
+        labels: ["Articles"],
+        values: [Math.round((r.count / total) * 1000) / 10],
+      })),
       {
-        x, y: y + 0.25, w: chartW, h: chartH - 0.3,
-        barDir: "bar",
-        showLegend: false,
-        chartColors: [DECK_COLORS.chartNavy],
-        catAxisLabelFontSize: 8,
-        valAxisLabelFontSize: 8,
+        ...CHART_BASE,
+        x, y: 2.9, w: chartW, h: 3.9,
+        barDir: "col",
+        chartColors: CHART_MORE.slice(0, chart.rows.length),
+        valAxisLabelFormatCode: '0"%"',
+        dataLabelFormatCode: '0.#"%"',
       }
     );
   });
+  addLogo(s, logo);
 }
 
-function slide12AdvSov(pptx: PptxGenJS, d: BriefDeckData) {
+// ---------------------------------------------------------------------------
+// S12 — Share of Voice by Advertising Presence
+// ---------------------------------------------------------------------------
+
+function slide12AdvSov(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
-  addHeader(
-    s, 12,
-    "Share of voice — advertising presence",
-    `Advertising spend by brand across ${d.host.title_name} titles, last ${d.period_days} days`
-  );
+  addHeading(s, "Share of Voice by Advertising Presence");
 
   const rows = d.advertisingSov;
   if (rows.length === 0 || rows.every((r) => r.spend_aud === 0)) {
-    pendingText(s, "Advertising share of voice pending — Salesforce spend import.");
+    pendingLine(
+      s,
+      `${d.brand} advertising share of voice pending — Salesforce spend import (Admin › Spend).`,
+      1.6
+    );
+    addLogo(s, logo);
     return;
+  }
+
+  const sorted = [...rows].sort((a, b) => b.spend_aud - a.spend_aud);
+  const brandRow = rows.find((r) => r.advertiser === d.brand) || sorted[0];
+  const bestOther = sorted.find((r) => r.advertiser !== d.brand);
+  if (bestOther && bestOther.spend_aud > 0) {
+    const leading = brandRow.spend_aud >= bestOther.spend_aud;
+    const a = leading ? brandRow : bestOther;
+    const b = leading ? bestOther : brandRow;
+    const diff = Math.round(((a.spend_aud - b.spend_aud) / Math.max(b.spend_aud, 1)) * 100);
+    s.addText(
+      `${a.advertiser} ran ${diff}% more advertising across ${d.host.title_name} titles than ${b.advertiser}`,
+      { x: 0.68, y: 1.5, w: 12.2, h: 0.36, fontFace: FONT, fontSize: 13.5, italic: true, color: SUB }
+    );
   }
 
   s.addChart(
     pptx.ChartType.bar,
-    [
-      {
-        name: "Spend (AUD)",
-        labels: rows.map((r) => r.advertiser),
-        values: rows.map((r) => r.spend_aud),
-      },
-    ],
+    sorted.map((r) => ({ name: r.advertiser, labels: ["Spend"], values: [r.spend_aud] })),
     {
-      x: 0.5, y: 1.7, w: 12.3, h: 4.9,
+      ...CHART_BASE,
+      x: 0.9, y: 2.3, w: 11.4, h: 4.3,
       barDir: "col",
-      showLegend: false,
-      chartColors: [DECK_COLORS.green],
+      chartColors: CHART_MORE.slice(0, sorted.length),
       valAxisLabelFormatCode: '"$"#,##0',
-      catAxisLabelFontSize: 9,
-      valAxisLabelFontSize: 9,
+      dataLabelFormatCode: '"$"#,##0',
     }
   );
   s.addText(
-    rows.map((r) => `${r.advertiser}: ${r.insertion_periods} insertion period${r.insertion_periods === 1 ? "" : "s"}`).join("   ·   "),
-    { x: 0.5, y: 6.75, w: 12.3, h: 0.4, fontSize: 9, color: MUTED }
+    sorted.map((r) => `${r.advertiser}: ${r.insertion_periods} insertion period${r.insertion_periods === 1 ? "" : "s"}`).join("   ·   "),
+    { x: 0.68, y: 6.85, w: 11.6, h: 0.35, fontFace: FONT, fontSize: 9, color: SUB }
   );
+  addLogo(s, logo);
 }
 
-async function slide13Proof(pptx: PptxGenJS, d: BriefDeckData) {
+// ---------------------------------------------------------------------------
+// S13 — Coverage proof (template: heading + subtitle + clippings)
+// ---------------------------------------------------------------------------
+
+async function slide13Proof(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
-  addHeader(s, 13, "The proof", "Most recent coverage");
+  addHeading(s, "Coverage", "Examples of how we’ve covered your brand");
 
   const latest = [...(d.coverage.top_articles || [])]
     .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
     .slice(0, 3);
 
   if (latest.length === 0) {
-    pendingText(s, "No coverage in the selected period.");
+    pendingLine(s, "No coverage in the selected period.");
+    addLogo(s, logo);
     return;
   }
 
-  // Fetch og:images in parallel (3s timeout each; failures fall back to cards).
   const images = await Promise.all(
     latest.map((a) => (a.url ? fetchOgImageData(a.url) : Promise.resolve(null)))
   );
 
   latest.forEach((a, i) => {
-    const x = 0.5 + i * 4.3;
+    const x = 0.75 + i * 4.05;
     const rawImg = images[i];
-    // Guard against tiny/corrupt fetches — better a clean branded block than a broken image.
     const img = rawImg && rawImg.length > 2000 ? rawImg : null;
     s.addShape("rect", {
-      x, y: 1.8, w: 4.0, h: 4.9,
+      x, y: 2.0, w: 3.8, h: 4.75,
       fill: { color: "FFFFFF" },
-      line: { color: "E5E7EB", width: 1 },
+      line: { color: "DDDDDD", width: 1 },
+      shadow: { type: "outer", blur: 5, offset: 1, angle: 90, color: "AAAAAA", opacity: 0.22 },
     });
     if (img) {
       s.addImage({
         data: img,
-        x: x + 0.1, y: 1.9, w: 3.8, h: 2.15,
-        sizing: { type: "cover", w: 3.8, h: 2.15 },
+        x: x + 0.08, y: 2.08, w: 3.64, h: 2.1,
+        sizing: { type: "cover", w: 3.64, h: 2.1 },
       });
     } else {
-      s.addShape("rect", {
-        x: x + 0.1, y: 1.9, w: 3.8, h: 2.15,
-        fill: { color: NAVY },
-      });
+      s.addShape("rect", { x: x + 0.08, y: 2.08, w: 3.64, h: 2.1, fill: { color: NAVY } });
       s.addText(sourceLabel(a.source_id), {
-        x: x + 0.1, y: 1.9, w: 3.8, h: 2.15,
-        align: "center", valign: "middle", fontSize: 16, bold: true, color: "FFFFFF",
+        x: x + 0.08, y: 2.08, w: 3.64, h: 2.1,
+        align: "center", valign: "middle", fontFace: FONT, fontSize: 16, bold: true, color: "FFFFFF",
       });
     }
     s.addText(a.title, {
-      x: x + 0.25, y: 4.2, w: 3.5, h: 1.3,
-      fontSize: 11, bold: true, color: TEXT, valign: "top",
+      x: x + 0.2, y: 4.35, w: 3.42, h: 1.25,
+      fontFace: FONT, fontSize: 11.5, bold: true, color: INK, valign: "top",
     });
     s.addText(
       `${sourceLabel(a.source_id)} · ${new Date(a.published_at).toLocaleDateString("en-AU")}`,
-      { x: x + 0.25, y: 5.55, w: 3.5, h: 0.3, fontSize: 9, color: MUTED }
+      { x: x + 0.2, y: 5.7, w: 3.42, h: 0.3, fontFace: FONT, fontSize: 9.5, color: SUB }
     );
     if (a.url) {
       s.addText("Read article", {
-        x: x + 0.25, y: 5.9, w: 3.5, h: 0.3,
-        fontSize: 9, color: ACCENT, underline: { style: "sng" },
+        x: x + 0.2, y: 6.05, w: 3.42, h: 0.3,
+        fontFace: FONT, fontSize: 9.5, color: TBL, underline: { style: "sng" },
         hyperlink: { url: a.url },
       });
     }
   });
+  addLogo(s, logo);
 }
 
-function slide14AllProof(pptx: PptxGenJS, d: BriefDeckData) {
-  const ROWS_PER_SLIDE = 25;
+// ---------------------------------------------------------------------------
+// S14 — All the proof (template: Date | Link table, blue borders)
+// ---------------------------------------------------------------------------
+
+function slide14AllProof(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
+  const ROWS_PER_SLIDE = 22;
   const MAX_SLIDES = 8;
   const articles = d.allArticles;
 
+  const cell = (text: string, opts: object = {}) => ({
+    text,
+    options: { fontFace: FONT, fontSize: 8.5, color: "1A1A1A", align: "center" as const, ...opts },
+  });
   const header: PptxGenJS.TableRow = [
-    { text: "Date", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-    { text: "Title", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-    { text: "Publication", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
+    cell("Date", { bold: true, fontSize: 10 }),
+    cell("Link", { bold: true, fontSize: 10 }),
+    cell("Publication", { bold: true, fontSize: 10 }),
   ];
 
   if (articles.length === 0) {
     const s = pptx.addSlide();
-    addHeader(s, 14, "All the proof", "Full coverage appendix");
-    pendingText(s, "No articles found for this brand in the selected period.");
+    addHeading(s, "Coverage", "Examples of how we’ve covered your brand");
+    pendingLine(s, "No articles found for this brand in the selected period.");
+    addLogo(s, logo);
     return;
   }
 
@@ -668,54 +702,61 @@ function slide14AllProof(pptx: PptxGenJS, d: BriefDeckData) {
   for (let i = 0; i < articles.length && chunks.length < MAX_SLIDES; i += ROWS_PER_SLIDE) {
     chunks.push(articles.slice(i, i + ROWS_PER_SLIDE));
   }
-  const shownCount = chunks.reduce((s, c) => s + c.length, 0);
+  const shownCount = chunks.reduce((t, c) => t + c.length, 0);
   const remaining = articles.length - shownCount;
 
   chunks.forEach((chunk, ci) => {
     const s = pptx.addSlide();
-    addHeader(
-      s, 14,
-      ci === 0 ? "All the proof" : "All the proof (cont.)",
-      `Full coverage appendix — ${articles.length} articles, last ${d.period_days} days`
+    addHeading(
+      s, "Coverage",
+      ci === 0
+        ? "Examples of how we’ve covered your brand"
+        : `Full coverage appendix (continued) — ${articles.length} articles`
     );
     const rows: PptxGenJS.TableRow[] = [header];
     for (const a of chunk) {
       rows.push([
-        {
-          text: a.published_at ? new Date(a.published_at).toLocaleDateString("en-AU") : "—",
-          options: { fontSize: 7.5 },
-        },
+        cell(a.published_at ? new Date(a.published_at).toLocaleDateString("en-AU") : "—"),
         {
           text: a.title,
-          options: a.url
-            ? { fontSize: 7.5, color: ACCENT, hyperlink: { url: a.url } }
-            : { fontSize: 7.5 },
+          options: {
+            fontFace: FONT, fontSize: 8.5, align: "left" as const,
+            color: TBL,
+            ...(a.url ? { hyperlink: { url: a.url } } : {}),
+          },
         },
-        { text: sourceLabel(a.source_id), options: { fontSize: 7.5 } },
+        cell(sourceLabel(a.source_id)),
       ]);
     }
     s.addTable(rows, {
-      x: 0.5, y: 1.7, w: 12.3,
-      colW: [1.3, 8.9, 2.1],
-      border: { type: "solid", color: "E5E7EB", pt: 0.5 },
-      rowH: 0.19,
+      x: 0.75, y: 2.0, w: 10.6,
+      colW: [1.6, 7.0, 2.0],
+      border: { type: "solid", color: TBL, pt: 0.75 },
+      valign: "middle",
+      rowH: 0.21,
     });
     if (ci === chunks.length - 1 && remaining > 0) {
       s.addText(`+${remaining} further articles in the full export.`, {
-        x: 0.5, y: 7.05, w: 12.3, h: 0.3, fontSize: 9, color: MUTED, italic: true,
+        x: 0.75, y: 7.05, w: 11.4, h: 0.3, fontFace: FONT, fontSize: 9, color: SUB, italic: true,
       });
     }
+    addLogo(s, logo);
   });
 }
 
-const INSERTION_HEADER: PptxGenJS.TableRow = [
-  { text: "Date", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  { text: "Publication", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  { text: "Ad type", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  { text: "Page position", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  { text: "Est. readership", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  { text: "Clicks", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-];
+// ---------------------------------------------------------------------------
+// S15/S16 — Campaigns (template: navy rounded stat box left, table right)
+// ---------------------------------------------------------------------------
+
+const INSERTION_COLS = ["Date", "Publication", "Ad Type", "Page Position", "Estimated Readership", "Clicks"];
+
+function insertionHeader(withNotes: boolean): PptxGenJS.TableRow {
+  const cols = withNotes ? [...INSERTION_COLS, "Notes"] : INSERTION_COLS;
+  return cols.map((c) => ({
+    text: c,
+    options: { bold: true, fontFace: FONT, fontSize: 9, color: "1A1A1A", align: "center" as const },
+  }));
+}
 
 function insertionCells(i: {
   run_date: string;
@@ -725,192 +766,124 @@ function insertionCells(i: {
   est_readership: number | null;
   clicks: number | null;
 }): PptxGenJS.TableRow {
+  const c = (text: string) => ({
+    text,
+    options: { fontFace: FONT, fontSize: 8.5, color: "1A1A1A", align: "center" as const },
+  });
   return [
-    { text: new Date(i.run_date).toLocaleDateString("en-AU"), options: { fontSize: 8 } },
-    { text: sourceLabel(i.source_id), options: { fontSize: 8 } },
-    { text: i.ad_type || "—", options: { fontSize: 8 } },
-    { text: i.page_position || "—", options: { fontSize: 8 } },
-    { text: i.est_readership != null ? Number(i.est_readership).toLocaleString("en-AU") : "—", options: { fontSize: 8 } },
-    { text: i.clicks != null ? Number(i.clicks).toLocaleString("en-AU") : "—", options: { fontSize: 8 } },
+    c(new Date(i.run_date).toLocaleDateString("en-AU")),
+    c(sourceLabel(i.source_id)),
+    c(i.ad_type || "—"),
+    c(i.page_position || "—"),
+    c(i.est_readership != null ? Number(i.est_readership).toLocaleString("en-AU") : "—"),
+    c(i.clicks != null ? Number(i.clicks).toLocaleString("en-AU") : "—"),
   ];
 }
 
-function slide15Campaign(pptx: PptxGenJS, d: BriefDeckData) {
+/** Navy rounded stat box (template S15/S16 left panel). */
+function campaignStatBox(
+  s: PptxGenJS.Slide,
+  title: string,
+  pairs: Array<[string, string]>
+) {
+  s.addShape("roundRect", {
+    x: 0.68, y: 1.85, w: 3.9, h: 5.15, rectRadius: 0.18,
+    fill: { color: NAVY },
+  });
+  const runs: PptxGenJS.TextProps[] = [
+    { text: title, options: { fontSize: 15, bold: true, color: "FFFFFF", breakLine: true, paraSpaceAfter: 12 } },
+  ];
+  for (const [label, value] of pairs) {
+    runs.push({ text: label, options: { fontSize: 12.5, color: "D8D6E8", breakLine: true, paraSpaceBefore: 6 } });
+    runs.push({ text: value, options: { fontSize: 13.5, bold: true, color: "FFFFFF", breakLine: true } });
+  }
+  s.addText(runs, {
+    x: 0.88, y: 2.0, w: 3.5, h: 4.85,
+    align: "center", valign: "top", fontFace: FONT,
+  });
+}
+
+function slide15Campaign(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
-  addHeader(s, 15, "Most recent campaign");
+  addHeading(s, "Most Recent Campaign");
 
   if (!d.latestCampaign) {
-    pendingText(s, "Campaign data pending — campaign report import (Admin > Campaigns).");
+    pendingLine(s, "Campaign data pending — campaign report import (Admin › Campaigns).", 1.6);
+    addLogo(s, logo);
     return;
   }
 
   const { campaign, insertions } = d.latestCampaign;
   const t = insertionTotals(insertions);
-  const periodStr = [campaign.period_start, campaign.period_end]
-    .filter(Boolean)
-    .map((x) => new Date(x as string).toLocaleDateString("en-AU"))
-    .join(" – ");
-  s.addText(`${campaign.name}${periodStr ? ` · ${periodStr}` : ""}`, {
-    x: 0.5, y: 1.2, w: 12.3, h: 0.4, fontSize: 13, bold: true, color: TEXT,
-  });
+  campaignStatBox(s, campaign.name, [
+    ["Advertisements", String(t.advertisements)],
+    ["Click-Thrus", t.clicks.toLocaleString("en-AU")],
+    ["Click-Thru Rate", t.ctrPct != null ? `${t.ctrPct.toFixed(2)}%` : "—"],
+    ["Estimated Reach", campaign.estimated_reach != null ? Number(campaign.estimated_reach).toLocaleString("en-AU") : "—"],
+    ["Spend", campaign.spend_aud != null ? formatAudCompact(Number(campaign.spend_aud)) : "—"],
+    ["Bonus Ad Value", formatBonusValue(campaign.bonus_ad_value, formatAudCompact)],
+  ]);
 
-  const kpis: Array<[string, string]> = [
-    [String(t.advertisements), "Advertisements"],
-    [t.clicks.toLocaleString("en-AU"), "Click-thrus"],
-    [t.ctrPct != null ? `${t.ctrPct.toFixed(2)}%` : "—", "CTR"],
-    [campaign.estimated_reach != null ? Number(campaign.estimated_reach).toLocaleString("en-AU") : "—", "Estimated reach"],
-    [campaign.spend_aud != null ? formatAudCompact(Number(campaign.spend_aud)) : "—", "Spend"],
-    [formatBonusValue(campaign.bonus_ad_value, formatAudCompact), "Bonus ad value"],
-  ];
-  kpis.forEach(([v, k], i) => {
-    const x = 0.5 + i * 2.13;
-    s.addShape("rect", {
-      x, y: 1.75, w: 1.98, h: 0.95,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
-    });
-    s.addText(v, { x: x + 0.1, y: 1.83, w: 1.8, h: 0.45, fontSize: 15, bold: true, color: TEXT });
-    s.addText(k, { x: x + 0.1, y: 2.3, w: 1.8, h: 0.3, fontSize: 8, color: MUTED });
-  });
-
-  const rows: PptxGenJS.TableRow[] = [INSERTION_HEADER];
+  const rows: PptxGenJS.TableRow[] = [insertionHeader(false)];
   for (const i of insertions.slice(0, 14)) rows.push(insertionCells(i));
   if (insertions.length === 0) {
     rows.push([
-      { text: "No insertions recorded for this campaign yet.", options: { fontSize: 9, colspan: 6, color: MUTED } },
+      {
+        text: "No insertions recorded for this campaign yet.",
+        options: { fontFace: FONT, fontSize: 9, colspan: 6, color: SUB },
+      },
     ]);
   }
   s.addTable(rows, {
-    x: 0.5, y: 2.95, w: 12.3,
-    colW: [1.5, 2.6, 2.4, 2.4, 1.9, 1.5],
-    border: { type: "solid", color: "E5E7EB", pt: 0.5 },
+    x: 4.85, y: 1.95, w: 8.1,
+    colW: [1.15, 1.55, 1.1, 1.3, 1.8, 1.2],
+    border: { type: "solid", color: TBL, pt: 0.75 },
+    valign: "middle",
   });
   if (insertions.length > 14) {
     s.addText(`+${insertions.length - 14} further insertions.`, {
-      x: 0.5, y: 7.05, w: 12.3, h: 0.3, fontSize: 9, color: MUTED, italic: true,
+      x: 4.85, y: 7.05, w: 8, h: 0.3, fontFace: FONT, fontSize: 9, color: SUB, italic: true,
     });
   }
+  addLogo(s, logo);
 }
 
-function slide16CampaignYtd(pptx: PptxGenJS, d: BriefDeckData) {
+function slide16CampaignYtd(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
   const s = pptx.addSlide();
   const year = new Date().getFullYear();
-  addHeader(s, 16, "Campaign reports — YTD", `All insertions across campaigns, ${year}`);
+  addHeading(s, `Campaign Reports ${year}`);
 
   if (d.ytdInsertions.length === 0) {
-    pendingText(s, "Campaign data pending — campaign report import (Admin > Campaigns).");
+    pendingLine(s, "Campaign data pending — campaign report import (Admin › Campaigns).", 1.6);
+    addLogo(s, logo);
     return;
   }
 
   const t = insertionTotals(d.ytdInsertions);
-  s.addText(
-    `${t.advertisements} advertisements · ${t.clicks.toLocaleString("en-AU")} click-thrus · ${t.ctrPct != null ? t.ctrPct.toFixed(2) + "% CTR" : "CTR —"}`,
-    { x: 0.5, y: 1.25, w: 12.3, h: 0.35, fontSize: 12, bold: true, color: TEXT }
-  );
+  const monthName = new Date().toLocaleDateString("en-AU", { month: "long" });
+  campaignStatBox(s, `YTD (January – ${monthName} ${year})`, [
+    ["Advertisements", String(t.advertisements)],
+    ["Click-Thrus", t.clicks.toLocaleString("en-AU")],
+    ["Click-Thru Rate", t.ctrPct != null ? `${t.ctrPct.toFixed(2)}%` : "—"],
+  ]);
 
-  const header: PptxGenJS.TableRow = [
-    ...INSERTION_HEADER,
-    { text: "Notes", options: { bold: true, fill: { color: SURFACE }, fontSize: 9 } },
-  ];
-  const rows: PptxGenJS.TableRow[] = [header];
+  const rows: PptxGenJS.TableRow[] = [insertionHeader(true)];
   for (const i of d.ytdInsertions.slice(0, 16)) {
     rows.push([
       ...insertionCells(i),
-      { text: i.notes || "—", options: { fontSize: 8 } },
+      { text: i.notes || "", options: { fontFace: FONT, fontSize: 8, color: "1A1A1A", bold: !!i.notes, align: "center" as const } },
     ]);
   }
   s.addTable(rows, {
-    x: 0.5, y: 1.75, w: 12.3,
-    colW: [1.3, 2.2, 1.9, 1.9, 1.6, 1.1, 2.3],
-    border: { type: "solid", color: "E5E7EB", pt: 0.5 },
+    x: 4.85, y: 1.95, w: 8.1,
+    colW: [1.0, 1.35, 0.9, 1.05, 1.5, 0.9, 1.4],
+    border: { type: "solid", color: TBL, pt: 0.75 },
+    valign: "middle",
   });
   if (d.ytdInsertions.length > 16) {
     s.addText(`+${d.ytdInsertions.length - 16} further insertions this year.`, {
-      x: 0.5, y: 7.05, w: 12.3, h: 0.3, fontSize: 9, color: MUTED, italic: true,
+      x: 4.85, y: 7.05, w: 8, h: 0.3, fontFace: FONT, fontSize: 9, color: SUB, italic: true,
     });
   }
+  addLogo(s, logo);
 }
-
-function slide17Recommendations(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  addHeader(s, 17, "Optimisation & recommendations", `Prepared for ${d.brand}`);
-
-  if (!d.recommendationsMd) {
-    pendingText(
-      s,
-      "Recommendations for this partnership are being prepared by the Travel Daily team and will be presented at the meeting."
-    );
-    return;
-  }
-
-  const blocks = parseSimpleMd(d.recommendationsMd);
-  let y = 1.8;
-  for (const b of blocks) {
-    if (y > 6.8) break;
-    if (b.type === "p") {
-      s.addText(b.text, {
-        x: 0.5, y, w: 12.3, h: 0.45, fontSize: 13, color: TEXT,
-      });
-      y += 0.5;
-    } else {
-      for (const item of b.items) {
-        if (y > 6.8) break;
-        s.addText(item, {
-          x: 0.7, y, w: 12.1, h: 0.4, fontSize: 12, color: TEXT,
-          bullet: { code: "2022" },
-        });
-        y += 0.42;
-      }
-      y += 0.15;
-    }
-  }
-}
-
-function slide18Proposal(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  addHeader(s, 18, "Proposal");
-  s.addShape("rect", {
-    x: 0.5, y: 1.9, w: 12.3, h: 4.6,
-    fill: { color: SURFACE },
-    line: { color: "E5E7EB", width: 1, dashType: "dash" },
-  });
-  s.addText("Proposal — TD to supply", {
-    x: 0.5, y: 3.6, w: 12.3, h: 0.8, align: "center",
-    fontSize: 20, italic: true, color: MUTED,
-  });
-  s.addText(`Commercial proposal for ${d.brand} to be inserted before the meeting.`, {
-    x: 0.5, y: 4.4, w: 12.3, h: 0.4, align: "center", fontSize: 11, color: MUTED,
-  });
-}
-
-function slide19LookingAhead(pptx: PptxGenJS) {
-  const s = pptx.addSlide();
-  addHeader(s, 19, "Looking ahead");
-  LOOKING_AHEAD_ITEMS.forEach((item, i) => {
-    const y = 1.9 + i * 1.2;
-    s.addShape("rect", {
-      x: 0.5, y, w: 12.3, h: 1.0,
-      fill: { color: SURFACE },
-      line: { color: "E5E7EB", width: 1 },
-    });
-    s.addText(item.title, {
-      x: 0.8, y: y + 0.12, w: 4.6, h: 0.5, fontSize: 15, bold: true, color: TEXT,
-    });
-    s.addText(item.detail, {
-      x: 5.5, y: y + 0.12, w: 7.0, h: 0.75, fontSize: 11, color: MUTED, valign: "middle",
-    });
-  });
-}
-
-function slide20ThankYou(pptx: PptxGenJS, d: BriefDeckData) {
-  const s = pptx.addSlide();
-  s.background = { color: NAVY };
-  s.addText("Thank you for your partnership", {
-    x: 0.6, y: 2.6, w: 12, h: 1.0, fontSize: 40, bold: true, color: "FFFFFF",
-  });
-  s.addText(`${d.host.title_name} × ${d.brand}`, {
-    x: 0.6, y: 3.7, w: 12, h: 0.5, fontSize: 16, color: "D1D5DB",
-  });
-  logoPlaceholder(s, 10.1, 5.5);
-}
-
