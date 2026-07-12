@@ -1,0 +1,26 @@
+-- Opus full-deck numeric verification (2026-07-10) — two confirmed defects.
+--
+-- RC2 (dollars): Promotional Value over-stated ~8-9%. brand_coverage_core's
+-- ave block summed rate-card values over the article_entities JOIN fan-out
+-- (one row per matching tag), so an article tagged under two aliases of the
+-- same canonical brand ("FCTG" + "Flight Centre Travel Group") counted its
+-- rate twice. Verified: FC $258,500 shown vs $238,500 true (+$20,000/+8.4%);
+-- NCL $264,000 vs $241,500 (+$22,500/+9.3%). Every COUNT was already
+-- DISTINCT-safe — only the dollar SUM (and by_source.ave_aud) fanned out.
+-- Fix: sum at article grain — iterate dedup_articles rows once, brand-match
+-- via EXISTS. Post-fix RPC values verified equal to first principles.
+--
+-- RC3 (consistency): brand_sov_by_category applied the materiality floor but
+-- not the story dedupe used by every other headline; now counts
+-- dedup_articles rows via the same EXISTS pattern. (No visible delta today —
+-- NCL/travel-daily 43 both ways — but prevents divergence for brands with
+-- republished -2..-N stories.)
+--
+-- CREATE OR REPLACE preserves ACLs: brand_coverage_core stays
+-- service_role-only behind the brand_coverage wrapper; brand_sov_by_category
+-- stays an anon-callable read RPC.
+--
+-- Applied to Supabase project BPG on 2026-07-10 via MCP (migration
+-- ave_article_grain_and_sov_dedupe). This file is the version-controlled
+-- record; the full function bodies live in that migration — the ave block
+-- and sov body are the only changes vs the previous live definitions.
