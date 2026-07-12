@@ -781,19 +781,50 @@ export function mediaCompetitorSet(config: BriefConfig): string[] {
   ];
 }
 
-/** S9 — brand volume rows for host primary vs media competitors. */
+/**
+ * S9 — brand volume rows: the host title, then every other BPG title with
+ * coverage, then the media competitors. The BPG bars must sum to the
+ * `summary.bpg_articles` headline shown beside the chart — the old
+ * host-only shape made the headline (all BPG titles) irreconcilable with
+ * the chart (host bar only), e.g. NCL 117 vs a 43 Travel Daily bar with
+ * Cruise Weekly's 64 articles invisible.
+ */
 export function coverageVolumeRows(
   data: BriefDeckData
-): Array<{ source_id: string; article_count: number; is_host: boolean }> {
-  const set = mediaCompetitorSet(data.host);
+): Array<{
+  source_id: string;
+  article_count: number;
+  is_host: boolean;
+  is_bpg: boolean;
+}> {
+  const host = data.host.primary_source;
   const byPub = new Map(
     data.coverage.by_publication.map((p) => [p.source_id, p.article_count])
   );
-  return set.map((s) => ({
-    source_id: s,
-    article_count: byPub.get(s) || 0,
-    is_host: s === data.host.primary_source,
-  }));
+  const otherBpg = data.coverage.by_publication
+    .filter((p) => p.is_bpg && p.source_id !== host && p.article_count > 0)
+    .sort((a, b) => b.article_count - a.article_count);
+  const competitors = data.host.media_competitors.filter((s) => s !== host);
+  return [
+    {
+      source_id: host,
+      article_count: byPub.get(host) || 0,
+      is_host: true,
+      is_bpg: true,
+    },
+    ...otherBpg.map((p) => ({
+      source_id: p.source_id,
+      article_count: p.article_count,
+      is_host: false,
+      is_bpg: true,
+    })),
+    ...competitors.map((s) => ({
+      source_id: s,
+      article_count: byPub.get(s) || 0,
+      is_host: false,
+      is_bpg: false,
+    })),
+  ];
 }
 
 /** S11 — group SoV rows into one chart per publication. */

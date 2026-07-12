@@ -216,7 +216,7 @@ export function S8TitleCardSlide({ data }: { data: BriefDeckData }) {
         <div>
           <div className="text-3xl font-semibold">{data.coverage.summary.bpg_articles}</div>
           <div className="opacity-70 text-xs uppercase tracking-wide mt-1">
-            {data.host.title_name} coverage
+            Coverage across our titles
           </div>
         </div>
         <div>
@@ -239,10 +239,17 @@ export function S8TitleCardSlide({ data }: { data: BriefDeckData }) {
 // ---------------------------------------------------------------------------
 
 export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
+  // BPG titles in navy tones (host darkest), competitors in the template
+  // blush/sage cycle — the BPG bars sum to the Articles headline on the left.
+  let comp = 0;
   const rows = coverageVolumeRows(data).map((r) => ({
     name: sourceLabel(r.source_id) + (r.is_host ? " (host)" : ""),
     articles: r.article_count,
-    isHost: r.is_host,
+    fill: r.is_host
+      ? TD_NAVY
+      : r.is_bpg
+        ? "#8FA3C8"
+        : CHART_PALETTE[1 + comp++ % (CHART_PALETTE.length - 1)],
   }));
   const allZero = rows.every((r) => r.articles === 0);
 
@@ -258,7 +265,9 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
             <div className="text-2xl font-semibold text-foreground">
               {data.coverage.summary.bpg_articles}
             </div>
-            <div className="text-xs text-muted mt-1">Articles</div>
+            <div className="text-xs text-muted mt-1">
+              Articles across our titles
+            </div>
           </div>
           <div className="rounded-md bg-surface border border-border p-3">
             <div className="text-2xl font-semibold text-foreground">—</div>
@@ -290,8 +299,8 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="articles" name="Articles">
-                  {rows.map((r, i) => (
-                    <Cell key={r.name} fill={barFill(i, r.isHost)} />
+                  {rows.map((r) => (
+                    <Cell key={r.name} fill={r.fill} />
                   ))}
                 </Bar>
               </BarChart>

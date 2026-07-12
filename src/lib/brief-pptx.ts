@@ -328,7 +328,7 @@ function slide8TitleCard(pptx: PptxGenJS, d: BriefDeckData) {
 
   const stats: Array<[string, string, string | null]> = [
     ["Total articles", String(d.coverage.summary.total_articles), null],
-    [`${d.host.title_name} coverage`, String(d.coverage.summary.bpg_articles), null],
+    ["Coverage across our titles", String(d.coverage.summary.bpg_articles), null],
     ["Promotional value", formatAudCompact(d.promotionalValue.mid), `Range ${formatPromoBand(d.promotionalValue)}`],
   ];
   stats.forEach(([k, v, sub], i) => {
@@ -367,7 +367,7 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
     fill: { color: NAVY },
   });
   const stats: Array<[string, string]> = [
-    [String(d.coverage.summary.bpg_articles), "Articles"],
+    [String(d.coverage.summary.bpg_articles), "Articles across our titles"],
     ["—", "Social Media Posts (pending)"],
     [String(d.coverage.events.length), "Events Attended"],
     [formatPromoBand(d.promotionalValue), "Promotional Value"],
@@ -403,7 +403,18 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
         ...CHART_BASE,
         x: 5.0, y: 2.35, w: 7.9, h: 4.5,
         barDir: "col",
-        chartColors: CHART_MORE.slice(0, rows.length),
+        // BPG titles in navy tones (host darkest), competitors in the
+        // template blush/sage cycle — BPG bars sum to the Articles headline.
+        chartColors: (() => {
+          let comp = 0;
+          return rows.map((r) =>
+            r.is_host
+              ? CHART_TRIO[0]
+              : r.is_bpg
+                ? "8FA3C8"
+                : CHART_MORE.slice(1)[comp++ % (CHART_MORE.length - 1)]
+          );
+        })(),
       }
     );
   }
