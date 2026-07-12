@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { href: "/articles", label: "Articles" },
   { href: "/entities", label: "Entities" },
   { href: "/publications", label: "Publications" },
+  { href: "/sales-radar", label: "Sales Radar" },
+  { href: "/editorial-compare", label: "Editorial Compare" },
   { href: "/brief", label: "Briefs" },
   { href: "/generator", label: "Generator" },
   { href: "/help", label: "Help" },

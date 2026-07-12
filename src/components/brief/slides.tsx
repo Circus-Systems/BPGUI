@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { SlideShell } from "./slide-shell";
 import { RecommendationsEditor } from "./recommendations-editor";
+import { SOURCE_COLORS } from "@/lib/constants";
 import {
   AUD,
   AUDIENCE_SEGMENTS,
@@ -28,6 +29,7 @@ import {
   formatPromoBand,
   insertionTotals,
   mediaCompetitorSet,
+  monthlyTimeline,
   promoFootnote,
   sourceLabel,
   sovChartsBySource,
@@ -243,6 +245,7 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
   // blush/sage cycle — the BPG bars sum to the Articles headline on the left.
   let comp = 0;
   const rows = coverageVolumeRows(data).map((r) => ({
+    source_id: r.source_id,
     name: sourceLabel(r.source_id) + (r.is_host ? " (host)" : ""),
     articles: r.article_count,
     fill: r.is_host
@@ -252,6 +255,19 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
         : CHART_PALETTE[1 + comp++ % (CHART_PALETTE.length - 1)],
   }));
   const allZero = rows.every((r) => r.articles === 0);
+
+  // Monthly trend — re-bucket the weekly timeline into calendar months, and
+  // colour each source the same as its bar above (SOURCE_COLORS fallback).
+  const monthly = monthlyTimeline(data.coverage.timeline || []);
+  const fillBySource = new Map(rows.map((r) => [r.source_id, r.fill]));
+  const monthlyOrder = [
+    ...rows.map((r) => r.source_id).filter((s) => monthly.sources.includes(s)),
+    ...monthly.sources.filter((s) => !rows.some((r) => r.source_id === s)),
+  ];
+  const monthlyFill = (s: string, i: number) =>
+    fillBySource.get(s) || SOURCE_COLORS[s] || CHART_PALETTE[i % CHART_PALETTE.length];
+
+  const hc = data.headlineCoverage;
 
   return (
     <SlideShell
@@ -287,6 +303,19 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
             </div>
             <div className="text-xs text-muted mt-1">Promotional value</div>
           </div>
+          {hc && (
+            <div className="rounded-md bg-surface border border-border p-3">
+              <div className="text-2xl font-semibold text-foreground">
+                {hc.pct}%
+              </div>
+              <div className="text-xs text-muted mt-1">
+                of coverage put {data.brand} in the headline
+              </div>
+              <div className="text-[10px] text-muted italic mt-1">
+                Share of canonically-tagged coverage; refreshed daily.
+              </div>
+            </div>
+          )}
         </div>
         <div>
           {allZero ? (
@@ -308,6 +337,30 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
           )}
         </div>
       </div>
+      {monthly.points.length > 0 && (
+        <div className="mt-6">
+          <p className="text-sm font-medium text-foreground mb-1">
+            Monthly trend
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={monthly.points}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip />
+              {monthlyOrder.map((s, i) => (
+                <Bar
+                  key={s}
+                  dataKey={s}
+                  name={sourceLabel(s)}
+                  stackId="coverage"
+                  fill={monthlyFill(s, i)}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       <PromoFootnote hostTitle={data.host.title_name} />
     </SlideShell>
   );
