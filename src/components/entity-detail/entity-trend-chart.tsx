@@ -113,6 +113,7 @@ export function EntityTrendChart({
             stackId="articles"
             fill={SOURCE_COLORS[sid] || NEUTRAL}
             name={SOURCE_LABELS[sid] || sid}
+            isAnimationActive={false}
           />
         ))}
       </BarChart>
