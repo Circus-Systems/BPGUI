@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { decodeHtmlEntities } from "@/lib/brief-deck";
 
 interface ClusterRow {
   source_id: string;
@@ -39,7 +40,7 @@ export async function GET(
       similarity: number | string | null;
     }) => ({
       source_id: r.source_id,
-      title: r.title,
+      title: decodeHtmlEntities(r.title || ""),
       url: r.url,
       published_at: r.published_at,
       is_first: r.is_first,

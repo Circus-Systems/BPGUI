@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { decodeHtmlEntities } from "@/lib/brief-deck";
 import { resolveVertical, verticalSources, resolveDays } from "../sources";
 
 const ALLOWED_DAYS = [7, 14, 30] as const;
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       first_published_at: string;
     }) => ({
       cluster_id: Number(r.cluster_id),
-      title: r.title,
+      title: decodeHtmlEntities(r.title || ""),
       url: r.url,
       sources: r.sources || [],
       first_source: r.first_source,
