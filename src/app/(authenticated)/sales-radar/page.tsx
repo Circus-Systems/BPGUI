@@ -1,6 +1,7 @@
 "use client";
 
 import { useVertical } from "@/hooks/use-vertical";
+import { useEntityDetail } from "@/providers/entity-detail-provider";
 import { useCallback, useEffect, useState } from "react";
 import { formatNumber, formatDate } from "@/lib/format";
 import {
@@ -69,6 +70,7 @@ function ratioLabel(n: number): string {
 
 export default function SalesRadarPage() {
   const { vertical } = useVertical();
+  const { openEntity } = useEntityDetail();
   const [days, setDays] = useState(90);
   const [radar, setRadar] = useState<RadarPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,9 +117,7 @@ export default function SalesRadarPage() {
     {
       key: "brand",
       header: "Brand",
-      render: (r) => (
-        <span className="font-medium text-foreground">{r.brand}</span>
-      ),
+      render: (r) => r.brand,
     },
     {
       key: "vertical",
@@ -154,9 +154,7 @@ export default function SalesRadarPage() {
     {
       key: "brand",
       header: "Brand",
-      render: (r) => (
-        <span className="font-medium text-foreground">{r.brand}</span>
-      ),
+      render: (r) => r.brand,
     },
     {
       key: "vertical",
@@ -175,9 +173,7 @@ export default function SalesRadarPage() {
     {
       key: "brand",
       header: "Brand",
-      render: (r) => (
-        <span className="font-medium text-foreground">{r.brand}</span>
-      ),
+      render: (r) => r.brand,
     },
     {
       key: "competitor_source",
@@ -206,9 +202,7 @@ export default function SalesRadarPage() {
     {
       key: "brand",
       header: "Brand",
-      render: (r) => (
-        <span className="font-medium text-foreground">{r.brand}</span>
-      ),
+      render: (r) => r.brand,
     },
     {
       key: "vertical",
@@ -319,6 +313,7 @@ export default function SalesRadarPage() {
                     rows={momentum}
                     rowKey={(r) => r.brand_id}
                     emptyMessage="No brands are spiking in this window."
+                    onBrandClick={openEntity}
                   />
                 </div>
               </section>
@@ -338,6 +333,7 @@ export default function SalesRadarPage() {
                     rows={whitespace}
                     rowKey={(r) => r.brand_id}
                     emptyMessage="No uncovered brands in this window."
+                    onBrandClick={openEntity}
                   />
                 </div>
               </section>
@@ -357,6 +353,7 @@ export default function SalesRadarPage() {
                     rows={affinity}
                     rowKey={(r) => `${r.brand_id}-${r.competitor_source}`}
                     emptyMessage="No strong affinities in this window."
+                    onBrandClick={openEntity}
                   />
                 </div>
                 <p className="mt-3 text-xs italic text-muted">
@@ -379,6 +376,7 @@ export default function SalesRadarPage() {
                     rows={emerging}
                     rowKey={(r) => r.brand_id}
                     emptyMessage="No newly emerging brands in this window."
+                    onBrandClick={openEntity}
                   />
                 </div>
               </section>
