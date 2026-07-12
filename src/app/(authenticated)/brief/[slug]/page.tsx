@@ -44,7 +44,9 @@ export default function BriefPage({
   const { slug } = use(params);
   const router = useRouter();
   const sp = useSearchParams();
-  const brandName = sp.get("name") || slug;
+  // Fallback must de-slugify: the raw slug ("norwegian-cruise-line") matches
+  // no brand alias and silently renders an all-zero deck.
+  const brandName = sp.get("name") || slug.replace(/-/g, " ");
   const host = sp.get("host") || DEFAULT_HOST_SLUG;
   const period = parseInt(sp.get("period") || "365", 10);
 

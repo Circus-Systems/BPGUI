@@ -12,7 +12,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const slug = sp.get("slug") || "";
-  const brandName = sp.get("name") || slug;
+  // De-slugify the fallback — the raw slug matches no brand alias and
+  // produces an all-zero deck.
+  const brandName = sp.get("name") || slug.replace(/-/g, " ");
   const period = parseInt(sp.get("period") || "365", 10);
   const host = sp.get("host") || DEFAULT_HOST_SLUG;
 
