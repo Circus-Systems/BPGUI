@@ -10,6 +10,8 @@ interface PublicationStat {
   sponsored_pct: number;
   articles_per_day: number;
   last_published: string | null;
+  brands_covered: number;
+  first_pct: number | null;
 }
 
 export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
@@ -31,6 +33,8 @@ export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
               <th className="pb-2 pr-4 font-medium text-muted text-right">Per Day</th>
               <th className="pb-2 pr-4 font-medium text-muted text-right">Avg Words</th>
               <th className="pb-2 pr-4 font-medium text-muted text-right">Sponsored</th>
+              <th className="pb-2 pr-4 font-medium text-muted text-right">Brands Covered</th>
+              <th className="pb-2 pr-4 font-medium text-muted text-right">First to Story</th>
               <th className="pb-2 font-medium text-muted">Volume</th>
             </tr>
           </thead>
@@ -63,6 +67,12 @@ export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
                   <td className="py-2.5 pr-4 text-right text-muted">
                     {(stat.sponsored_pct * 100).toFixed(0)}%
                   </td>
+                  <td className="py-2.5 pr-4 text-right text-muted">
+                    {stat.brands_covered.toLocaleString()}
+                  </td>
+                  <td className="py-2.5 pr-4 text-right text-muted">
+                    {stat.first_pct == null ? "—" : `${stat.first_pct.toFixed(0)}%`}
+                  </td>
                   <td className="py-2.5 w-32">
                     <div className="h-3 rounded-full bg-surface overflow-hidden">
                       <div
@@ -80,6 +90,9 @@ export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-xs text-muted">
+        First-to-story covers multi-source stories since Jul 2025.
+      </p>
     </div>
   );
 }

@@ -11,6 +11,8 @@ interface PublicationStat {
   sponsored_pct: number;
   articles_per_day: number;
   last_published: string | null;
+  brands_covered: number;
+  first_pct: number | null;
 }
 
 interface Breakdown {
@@ -93,6 +95,18 @@ export function PublicationCard({
           <p className="text-xs text-muted">Sponsored</p>
           <p className="text-sm font-medium text-foreground">
             {(stat.sponsored_pct * 100).toFixed(0)}%
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Brands Covered</p>
+          <p className="text-sm font-medium text-foreground">
+            {stat.brands_covered.toLocaleString()}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">First to Story</p>
+          <p className="text-sm font-medium text-foreground">
+            {stat.first_pct == null ? "—" : `${stat.first_pct.toFixed(0)}%`}
           </p>
         </div>
       </div>

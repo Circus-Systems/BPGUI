@@ -17,6 +17,8 @@ interface PublicationStat {
   sponsored_pct: number;
   articles_per_day: number;
   last_published: string | null;
+  brands_covered: number;
+  first_pct: number | null;
 }
 
 interface TimelineEntry {

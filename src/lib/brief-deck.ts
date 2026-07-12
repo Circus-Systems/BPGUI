@@ -203,6 +203,25 @@ export interface PromoBand {
   high: number;
 }
 
+/** One row from the brand_trend RPC (canonical brand × source × month). */
+export interface BrandTrendRow {
+  month: string;
+  source_id: string;
+  articles: number;
+  title_articles: number;
+  mentions: number;
+}
+
+/** S9 — prominence split: share of coverage that named the brand in the headline. */
+export interface HeadlineCoverage {
+  /** Articles that put the brand in the title. */
+  title_articles: number;
+  /** Total canonically-tagged articles mentioning the brand. */
+  articles: number;
+  /** title_articles / articles as a whole-number percentage. */
+  pct: number;
+}
+
 export interface BriefDeckData {
   brand: string;
   slug: string;
@@ -232,6 +251,12 @@ export interface BriefDeckData {
   recommendationsMd: string | null;
   /** Promotional Value band (±15% around coverage.ave.article_ave) */
   promotionalValue: PromoBand;
+  /**
+   * S9 — prominence split from brand_trend (canonical-tagged coverage).
+   * Optional so the PPTX generator compiles unchanged; null/absent hides
+   * the "Headline coverage" stat (fail-soft).
+   */
+  headlineCoverage?: HeadlineCoverage | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -569,6 +594,13 @@ export async function assembleBriefData(
   const now = new Date();
   const from = new Date(now.getTime() - opts.period * 86_400_000);
 
+  // Same source set brand_coverage examines (BPG titles + all competitors),
+  // for the S9 prominence split. p_months spans the deck period (>= 2).
+  const coverageSources = [
+    ...new Set([...config.bpg_sources, ...config.all_competitors]),
+  ];
+  const trendMonths = Math.max(2, Math.ceil(opts.period / 30));
+
   // --- Round 1: independent fetches -------------------------------------
   const [
     coverageRes,
@@ -578,6 +610,7 @@ export async function assembleBriefData(
     campaignsRes,
     recsRes,
     teamRes,
+    trendRows,
   ] = await Promise.all([
     supabase.rpc("brand_coverage", {
       brand_name: opts.brandName,
@@ -614,6 +647,19 @@ export async function assembleBriefData(
       .ilike("brand", opts.brandName)
       .limit(1),
     fetchTeam(supabase, config.primary_source),
+    // S9 prominence split — fail-soft: any error or empty result → [].
+    (async (): Promise<BrandTrendRow[]> => {
+      try {
+        const { data, error } = await supabase.rpc("brand_trend", {
+          p_brand: opts.brandName,
+          p_sources: coverageSources,
+          p_months: trendMonths,
+        });
+        return error ? [] : ((data as BrandTrendRow[]) || []);
+      } catch {
+        return [];
+      }
+    })(),
   ]);
 
   if (coverageRes.error) {
@@ -745,6 +791,23 @@ export async function assembleBriefData(
     campaign_name: campaignNameById.get(i.campaign_id) || "",
   }));
 
+  // S9 prominence split — share of coverage that named the brand in the
+  // headline. Null when brand_trend errored or returned no coverage.
+  let sumArticles = 0;
+  let sumTitle = 0;
+  for (const r of trendRows) {
+    sumArticles += Number(r.articles) || 0;
+    sumTitle += Number(r.title_articles) || 0;
+  }
+  const headlineCoverage: HeadlineCoverage | null =
+    sumArticles > 0
+      ? {
+          title_articles: sumTitle,
+          articles: sumArticles,
+          pct: Math.round((sumTitle / sumArticles) * 100),
+        }
+      : null;
+
   return {
     brand: coverage.brand || opts.brandName,
     slug: opts.slug,
@@ -766,6 +829,7 @@ export async function assembleBriefData(
     ytdInsertions,
     recommendationsMd,
     promotionalValue: promotionalValueBand(coverage.ave?.article_ave || 0),
+    headlineCoverage,
   };
 }
 
@@ -825,6 +889,55 @@ export function coverageVolumeRows(
       is_bpg: false,
     })),
   ];
+}
+
+/** Compact month labels for the S9 monthly-trend axis. */
+const MONTH_ABBR = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
+export interface MonthlyTimelinePoint {
+  /** "YYYY-MM" bucket key (chronological sort key). */
+  month: string;
+  /** Short axis label, e.g. "Jan 26". */
+  label: string;
+  /** One key per source_id present → article count that month (0-filled). */
+  [sourceId: string]: string | number;
+}
+
+/**
+ * Re-bucket the weekly coverage.timeline rows into calendar months for the
+ * S9 monthly-trend chart. Months before 2005 are dropped (travel-bulletin
+ * carries epoch-dated rows). Returns the pivoted points (chronological) plus
+ * the source_ids present. Empty input → empty points, so the caller can hide
+ * the chart entirely (0-safe).
+ */
+export function monthlyTimeline(
+  rows: Array<{ week: string; source_id: string; articles: number }>
+): { points: MonthlyTimelinePoint[]; sources: string[] } {
+  const byMonth = new Map<string, MonthlyTimelinePoint>();
+  const sources = new Set<string>();
+  for (const r of rows || []) {
+    const month = String(r?.week || "").slice(0, 7); // "YYYY-MM-DD" -> "YYYY-MM"
+    if (!/^\d{4}-\d{2}$/.test(month) || month < "2005-01") continue;
+    const src = String(r.source_id);
+    sources.add(src);
+    let point = byMonth.get(month);
+    if (!point) {
+      const mi = parseInt(month.slice(5, 7), 10) - 1;
+      point = { month, label: `${MONTH_ABBR[mi] ?? month} ${month.slice(2, 4)}` };
+      byMonth.set(month, point);
+    }
+    point[src] = ((point[src] as number) || 0) + (Number(r.articles) || 0);
+  }
+  const srcList = [...sources];
+  const points = [...byMonth.values()].sort((a, b) =>
+    a.month.localeCompare(b.month)
+  );
+  // 0-fill every source on every point so stacked bars render cleanly.
+  for (const p of points) for (const s of srcList) if (p[s] == null) p[s] = 0;
+  return { points, sources: srcList };
 }
 
 /** S11 — group SoV rows into one chart per publication. */
