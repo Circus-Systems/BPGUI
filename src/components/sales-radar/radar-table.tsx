@@ -56,11 +56,13 @@ export function RadarTable<T>({
   rows,
   rowKey,
   emptyMessage = "No signals in this window.",
+  onBrandClick,
 }: {
   columns: RadarColumn<T>[];
   rows: T[];
   rowKey: (row: T, index: number) => string;
   emptyMessage?: string;
+  onBrandClick?: (brand: string) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -88,22 +90,37 @@ export function RadarTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={rowKey(row, i)} className="border-b border-border/50">
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={`py-2.5 pr-4 ${
-                    col.align === "right"
-                      ? "text-right text-foreground"
-                      : "text-foreground"
-                  }`}
-                >
-                  {col.render(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const brand = (row as unknown as Record<string, unknown>).brand;
+            return (
+              <tr key={rowKey(row, i)} className="border-b border-border/50">
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`py-2.5 pr-4 ${
+                      col.align === "right"
+                        ? "text-right text-foreground"
+                        : "text-foreground"
+                    }`}
+                  >
+                    {col.key === "brand" &&
+                    onBrandClick &&
+                    typeof brand === "string" ? (
+                      <button
+                        type="button"
+                        onClick={() => onBrandClick(brand)}
+                        className="text-accent hover:underline text-left"
+                      >
+                        {col.render(row)}
+                      </button>
+                    ) : (
+                      col.render(row)
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -3,7 +3,7 @@
 import { useVertical } from "@/hooks/use-vertical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EntityTable } from "@/components/entities/entity-table";
-import { EntityDetail } from "@/components/entities/entity-detail";
+import { useEntityDetail } from "@/providers/entity-detail-provider";
 import { VERTICAL_SOURCES, SOURCE_LABELS } from "@/lib/constants";
 
 interface Entity {
@@ -14,28 +14,6 @@ interface Entity {
   avg_confidence: number;
   in_title_pct: number;
   top_sentiment: string;
-}
-
-interface EntityDetailData {
-  entity_name: string;
-  entity_type: string;
-  article_count: number;
-  total_mentions: number;
-  articles: Array<{
-    id: number;
-    source_id: string;
-    external_id: string;
-    title: string;
-    url: string;
-    published_at: string | null;
-    author_name: string | null;
-  }>;
-  co_occurrences: Array<{
-    name: string;
-    type: string;
-    count: number;
-  }>;
-  source_distribution: Record<string, number>;
 }
 
 const PAGE_SIZE = 50;
@@ -57,6 +35,7 @@ const DATE_OPTIONS = [
 
 export default function EntitiesPage() {
   const { vertical } = useVertical();
+  const { openEntity } = useEntityDetail();
   const [entities, setEntities] = useState<Entity[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -73,11 +52,6 @@ export default function EntitiesPage() {
   const [customTo, setCustomTo] = useState("");
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  // Detail panel
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [detailData, setDetailData] = useState<EntityDetailData | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
 
   // Reset source filter when vertical changes (source list differs per vertical)
   useEffect(() => {
@@ -138,32 +112,8 @@ export default function EntitiesPage() {
 
   // Refetch when filters change
   useEffect(() => {
-    setSelectedEntity(null);
-    setDetailData(null);
     fetchEntities(0, false);
   }, [fetchEntities]);
-
-  // Fetch entity detail when selection changes
-  useEffect(() => {
-    if (!selectedEntity) {
-      setDetailData(null);
-      return;
-    }
-    setDetailLoading(true);
-    const params = new URLSearchParams({ vertical, dateRange, source });
-    if (dateRange === "custom") {
-      if (customFrom) params.set("from", customFrom);
-      if (customTo) params.set("to", customTo);
-    }
-    fetch(`/api/entities/${encodeURIComponent(selectedEntity)}?${params}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to fetch entity detail");
-        return r.json();
-      })
-      .then((data) => setDetailData(data))
-      .catch(() => setDetailData(null))
-      .finally(() => setDetailLoading(false));
-  }, [selectedEntity, vertical, source, dateRange, customFrom, customTo]);
 
   function handleLoadMore() {
     fetchEntities(entities.length, true);
@@ -271,51 +221,43 @@ export default function EntitiesPage() {
         )}
 
         {/* Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Entity table */}
-          <div className="lg:col-span-2 rounded-xl border border-border bg-white p-4">
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-10 animate-pulse rounded bg-surface"
-                  />
-                ))}
-              </div>
-            ) : entities.length === 0 ? (
-              <div className="py-8 text-center">
-                <p className="text-sm text-muted">
-                  No entities found matching your filters.
-                </p>
-              </div>
-            ) : (
-              <>
-                <EntityTable
-                  entities={entities}
-                  selectedEntity={selectedEntity}
-                  onSelect={setSelectedEntity}
+        <div className="rounded-xl border border-border bg-white p-4">
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-10 animate-pulse rounded bg-surface"
                 />
+              ))}
+            </div>
+          ) : entities.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-muted">
+                No entities found matching your filters.
+              </p>
+            </div>
+          ) : (
+            <>
+              <EntityTable
+                entities={entities}
+                selectedEntity={null}
+                onSelect={openEntity}
+              />
 
-                {hasMore && (
-                  <div className="flex justify-center pt-4">
-                    <button
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      className="rounded-full bg-surface px-6 py-2 text-sm font-medium text-foreground hover:bg-surface-elevated disabled:opacity-50 transition-colors"
-                    >
-                      {loadingMore ? "Loading..." : "Load more"}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Entity detail panel */}
-          <div className="lg:col-span-1">
-            <EntityDetail data={detailData} loading={detailLoading} />
-          </div>
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="rounded-full bg-surface px-6 py-2 text-sm font-medium text-foreground hover:bg-surface-elevated disabled:opacity-50 transition-colors"
+                  >
+                    {loadingMore ? "Loading..." : "Load more"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </main>
