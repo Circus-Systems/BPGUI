@@ -222,6 +222,21 @@ export interface HeadlineCoverage {
   pct: number;
 }
 
+/**
+ * S9 — "Where your coverage comes from": one row per source, aggregated from
+ * the brand_trend rows already fetched for the deck (no extra RPC). Sorted
+ * by article volume, descending.
+ */
+export interface PublisherMixRow {
+  source_id: string;
+  /** Brand articles from this source across the trend window. */
+  articles: number;
+  /** articles / total-across-all-sources as a whole-number percentage. */
+  pct: number;
+  /** True when source_id is one of the host's BPG titles. */
+  is_bpg: boolean;
+}
+
 export interface BriefDeckData {
   brand: string;
   slug: string;
@@ -257,6 +272,12 @@ export interface BriefDeckData {
    * the "Headline coverage" stat (fail-soft).
    */
   headlineCoverage?: HeadlineCoverage | null;
+  /**
+   * S9 — per-source share of coverage from brand_trend (same rows that feed
+   * headlineCoverage). Optional + empty-when-no-data so both renderers stay
+   * 0-safe: an empty list hides the "Where your coverage comes from" element.
+   */
+  publisherMix?: PublisherMixRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -792,12 +813,18 @@ export async function assembleBriefData(
   }));
 
   // S9 prominence split — share of coverage that named the brand in the
-  // headline. Null when brand_trend errored or returned no coverage.
+  // headline, plus per-source publisher mix. Both derive from the same
+  // brand_trend rows; null/empty when brand_trend errored or returned nothing.
   let sumArticles = 0;
   let sumTitle = 0;
+  const bySourceArticles = new Map<string, number>();
   for (const r of trendRows) {
-    sumArticles += Number(r.articles) || 0;
+    const a = Number(r.articles) || 0;
+    sumArticles += a;
     sumTitle += Number(r.title_articles) || 0;
+    if (a > 0) {
+      bySourceArticles.set(r.source_id, (bySourceArticles.get(r.source_id) || 0) + a);
+    }
   }
   const headlineCoverage: HeadlineCoverage | null =
     sumArticles > 0
@@ -807,6 +834,19 @@ export async function assembleBriefData(
           pct: Math.round((sumTitle / sumArticles) * 100),
         }
       : null;
+
+  const bpgSourceSet = new Set(config.bpg_sources);
+  const publisherMix: PublisherMixRow[] =
+    sumArticles > 0
+      ? [...bySourceArticles.entries()]
+          .map(([source_id, articles]) => ({
+            source_id,
+            articles,
+            pct: Math.round((articles / sumArticles) * 100),
+            is_bpg: bpgSourceSet.has(source_id),
+          }))
+          .sort((a, b) => b.articles - a.articles)
+      : [];
 
   return {
     brand: coverage.brand || opts.brandName,
@@ -830,6 +870,7 @@ export async function assembleBriefData(
     recommendationsMd,
     promotionalValue: promotionalValueBand(coverage.ave?.article_ave || 0),
     headlineCoverage,
+    publisherMix,
   };
 }
 

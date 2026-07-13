@@ -361,7 +361,8 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
   const s = pptx.addSlide();
   addHeading(s, "Coverage", "We have amplified your brand across our newsletter, social media and website");
 
-  // Left navy rounded box with the four headline stats (template S9)
+  // Left navy rounded box with the headline stats (template S9). Headline
+  // coverage joins as a fifth stat when present (0-safe); spacing adapts.
   s.addShape("roundRect", {
     x: 0.68, y: 2.0, w: 3.85, h: 4.85, rectRadius: 0.18,
     fill: { color: NAVY },
@@ -372,8 +373,12 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
     [String(d.coverage.events.length), "Events Attended"],
     [formatPromoBand(d.promotionalValue), "Promotional Value"],
   ];
+  if (d.headlineCoverage) {
+    stats.push([`${d.headlineCoverage.pct}%`, "Coverage in the headline"]);
+  }
+  const slot = 4.85 / stats.length;
   stats.forEach(([v, k], i) => {
-    const y = 2.25 + i * 1.18;
+    const y = 2.0 + i * slot + (slot - 0.82) / 2;
     s.addText(v, {
       x: 0.83, y, w: 3.55, h: 0.5, align: "center",
       fontFace: FONT, fontSize: v.length > 10 ? 16 : 24, bold: true, color: "FFFFFF",
@@ -384,8 +389,23 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
     });
   });
 
-  // Right — Volume LTM, one coloured series per publication (template style)
+  // Right — Volume LTM, one coloured series per publication (template style).
+  // BPG titles in navy tones (host darkest), competitors in the template
+  // blush/sage cycle — BPG bars sum to the Articles headline.
   const rows = coverageVolumeRows(d);
+  let comp = 0;
+  const colorBySource = new Map<string, string>();
+  for (const r of rows) {
+    colorBySource.set(
+      r.source_id,
+      r.is_host
+        ? CHART_TRIO[0]
+        : r.is_bpg
+          ? "8FA3C8"
+          : CHART_MORE.slice(1)[comp++ % (CHART_MORE.length - 1)]
+    );
+  }
+
   if (rows.every((r) => r.article_count === 0)) {
     s.addText("No brand coverage recorded across these publications in this period.", {
       x: 5.0, y: 3.4, w: 7.8, h: 0.5, fontFace: FONT, fontSize: 12.5, color: SUB, italic: true,
@@ -401,23 +421,37 @@ function slide9Coverage(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) 
       })),
       {
         ...CHART_BASE,
-        x: 5.0, y: 2.35, w: 7.9, h: 4.5,
+        x: 5.0, y: 2.35, w: 7.9, h: 3.9,
         barDir: "col",
-        // BPG titles in navy tones (host darkest), competitors in the
-        // template blush/sage cycle — BPG bars sum to the Articles headline.
-        chartColors: (() => {
-          let comp = 0;
-          return rows.map((r) =>
-            r.is_host
-              ? CHART_TRIO[0]
-              : r.is_bpg
-                ? "8FA3C8"
-                : CHART_MORE.slice(1)[comp++ % (CHART_MORE.length - 1)]
-          );
-        })(),
+        chartColors: rows.map((r) => colorBySource.get(r.source_id)!),
       }
     );
   }
+
+  // "Where your coverage comes from" — compact per-source share beneath the
+  // chart, coloured to match the bars, BPG titles bold (0-safe: empty → hidden).
+  const mix = (d.publisherMix ?? []).slice(0, 5);
+  if (mix.length > 0) {
+    s.addText("Where your coverage comes from", {
+      x: 5.0, y: 6.32, w: 7.9, h: 0.26, fontFace: FONT, fontSize: 10.5, bold: true, color: "595959",
+    });
+    const runs: PptxGenJS.TextProps[] = [];
+    mix.forEach((m, i) => {
+      if (i > 0) runs.push({ text: "   ·   ", options: { color: "BBBBBB", fontSize: 11 } });
+      runs.push({
+        text: `${sourceLabel(m.source_id)} ${m.pct}%`,
+        options: {
+          color: colorBySource.get(m.source_id) || CHART_MORE[i % CHART_MORE.length],
+          fontSize: 11,
+          bold: m.is_bpg,
+        },
+      });
+    });
+    s.addText(runs, {
+      x: 5.0, y: 6.58, w: 7.9, h: 0.34, fontFace: FONT, fontSize: 11, color: "595959",
+    });
+  }
+
   s.addText(promoFootnote(d.host.title_name), {
     x: 0.68, y: 7.02, w: 11.4, h: 0.3, fontFace: FONT, fontSize: 8, color: SUB, italic: true,
   });
@@ -435,11 +469,14 @@ function slide10Unique(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
 
   const uniqueCount = c.unique_coverage_count ?? c.unique_coverage.length;
   const missedCount = c.missed_coverage_count ?? c.missed_coverage.length;
+  const ftp = c.first_to_publish;
   const bpgFirstPct =
-    c.first_to_publish.total_shared > 0
-      ? Math.round((c.first_to_publish.bpg_first / c.first_to_publish.total_shared) * 100)
+    ftp.total_shared > 0
+      ? Math.round((ftp.bpg_first / ftp.total_shared) * 100)
       : 0;
-  const enoughShared = c.first_to_publish.total_shared >= 3;
+  const enoughShared = ftp.total_shared >= 3;
+  // Emphasis line — only when there is shared coverage to be first on (0-safe).
+  const showFirstEmphasis = c.shared_coverage_count > 0 && ftp.total_shared > 0;
 
   // Outer card
   s.addShape("rect", {
@@ -465,7 +502,7 @@ function slide10Unique(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
     [String(missedCount), "Missed (competitor only)"],
     [
       enoughShared ? `${bpgFirstPct}%` : "—",
-      enoughShared ? "BPG-first rate" : `BPG-first rate (only ${c.first_to_publish.total_shared} shared)`,
+      enoughShared ? "BPG-first rate" : `BPG-first rate (only ${ftp.total_shared} shared)`,
     ],
   ];
   kpis.forEach(([v, k], i) => {
@@ -489,6 +526,17 @@ function slide10Unique(pptx: PptxGenJS, d: BriefDeckData, logo: string | null) {
     s.addText("Story-clustering backfill in progress — figures will populate as clusters build.", {
       x: 0.75, y: 6.1, w: 11.85, h: 0.35, fontFace: FONT, fontSize: 10, color: SUB, italic: true,
     });
+  } else if (showFirstEmphasis) {
+    s.addText(
+      [
+        { text: "First to publish ", options: { bold: true } },
+        {
+          text: `on ${ftp.bpg_first} of ${ftp.total_shared} stories that competitors also ran.`,
+          options: {},
+        },
+      ],
+      { x: 0.75, y: 6.1, w: 11.85, h: 0.4, fontFace: FONT, fontSize: 13, color: INK, align: "center" }
+    );
   }
   addLogo(s, logo);
 }

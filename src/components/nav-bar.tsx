@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/publications", label: "Publications" },
   { href: "/sales-radar", label: "Sales Radar" },
   { href: "/editorial-compare", label: "Editorial Compare" },
+  { href: "/benchmark", label: "Benchmark" },
   { href: "/brief", label: "Briefs" },
   { href: "/generator", label: "Generator" },
   { href: "/help", label: "Help" },

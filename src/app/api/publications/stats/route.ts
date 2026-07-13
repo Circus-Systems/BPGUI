@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
+import { WIRE_SOURCES } from "@/lib/constants";
 import { parsePeriod, resolveSources } from "../period";
 
 export async function GET(request: NextRequest) {
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       p_sources: sources,
       p_from: breadthFrom,
       p_to: breadthTo,
+      p_wire_sources: [...WIRE_SOURCES],
     }),
   ]);
 

@@ -9,6 +9,7 @@ export interface SpeedRow {
   first_count: number;
   first_pct: number;
   median_lag_hours: number | null;
+  is_wire?: boolean;
 }
 
 export function SpeedTable({ report }: { report: SpeedRow[] }) {
@@ -35,6 +36,7 @@ export function SpeedTable({ report }: { report: SpeedRow[] }) {
         <tbody>
           {report.map((row) => {
             const isBpg = BPG_SOURCES.includes(row.source_id);
+            const isWire = row.is_wire ?? false;
             return (
               <tr
                 key={row.source_id}
@@ -49,6 +51,14 @@ export function SpeedTable({ report }: { report: SpeedRow[] }) {
                       />
                     )}
                     {SOURCE_LABELS[row.source_id] || row.source_id}
+                    {isWire && (
+                      <span
+                        className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted"
+                        title="Press-release wire — excluded from the first-to-story race"
+                      >
+                        Wire
+                      </span>
+                    )}
                   </span>
                 </td>
                 <td className="py-2.5 pr-4 text-right text-muted">
@@ -57,7 +67,11 @@ export function SpeedTable({ report }: { report: SpeedRow[] }) {
                 <td className="py-2.5 pr-4 text-right text-muted">
                   {row.first_count.toLocaleString()}
                 </td>
-                <td className="py-2.5 pr-4 text-right text-foreground">
+                <td
+                  className={`py-2.5 pr-4 text-right ${
+                    isWire ? "text-muted" : "text-foreground"
+                  }`}
+                >
                   {row.first_pct.toFixed(1)}%
                 </td>
                 <td className="py-2.5 text-right text-muted">

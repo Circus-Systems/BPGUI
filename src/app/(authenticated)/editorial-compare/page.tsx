@@ -78,6 +78,7 @@ export default function EditorialComparePage() {
 
   // Coverage gaps state
   const [gapsDays, setGapsDays] = useState(7);
+  const [hideWire, setHideWire] = useState(true);
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [gapsLoading, setGapsLoading] = useState(true);
   const [gapsError, setGapsError] = useState<string | null>(null);
@@ -101,6 +102,7 @@ export default function EditorialComparePage() {
       const params = new URLSearchParams({
         vertical,
         days: String(gapsDays),
+        wire: hideWire ? "exclude" : "include",
       });
       const res = await fetch(`/api/editorial-compare/gaps?${params}`);
       if (!res.ok) throw new Error("Failed to load coverage gaps");
@@ -111,7 +113,7 @@ export default function EditorialComparePage() {
     } finally {
       setGapsLoading(false);
     }
-  }, [vertical, gapsDays]);
+  }, [vertical, gapsDays, hideWire]);
 
   // Fetch speed report
   const fetchSpeed = useCallback(async () => {
@@ -188,11 +190,26 @@ export default function EditorialComparePage() {
                 Stories competitors ran that BPG didn&apos;t.
               </p>
             </div>
-            <PillPicker
-              options={GAP_DAY_OPTIONS}
-              value={gapsDays}
-              onChange={setGapsDays}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setHideWire((v) => !v)}
+                aria-pressed={hideWire}
+                title="Exclude press-release wire-only stories from the coverage gaps"
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  hideWire
+                    ? "bg-accent text-white"
+                    : "bg-surface text-muted hover:text-foreground"
+                }`}
+              >
+                Hide wire-only stories
+              </button>
+              <PillPicker
+                options={GAP_DAY_OPTIONS}
+                value={gapsDays}
+                onChange={setGapsDays}
+              />
+            </div>
           </div>
 
           {gapsError ? (
@@ -237,7 +254,9 @@ export default function EditorialComparePage() {
               <h2 className="text-lg font-semibold text-foreground">
                 Speed report — who publishes first
               </h2>
-              <p className="text-sm text-muted">Multi-source stories only.</p>
+              <p className="text-sm text-muted">
+                Multi-source stories only — wire titles excluded from the race.
+              </p>
             </div>
             <PillPicker
               options={SPEED_DAY_OPTIONS}

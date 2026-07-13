@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { decodeHtmlEntities } from "@/lib/brief-deck";
+import { WIRE_SOURCES } from "@/lib/constants";
 import { resolveVertical, verticalSources, resolveDays } from "../sources";
 
 const ALLOWED_DAYS = [7, 14, 30] as const;
@@ -21,12 +22,18 @@ export async function GET(request: NextRequest) {
   const days = resolveDays(params.get("days"), ALLOWED_DAYS, 7);
   const { bpg, competitors } = verticalSources(vertical);
 
+  // Wire mode: "exclude" (default) drops wire-only gap stories from the RPC;
+  // "include" keeps them (passes an empty wire set).
+  const wireMode = params.get("wire") === "include" ? "include" : "exclude";
+  const wireSources = wireMode === "exclude" ? [...WIRE_SOURCES] : [];
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("coverage_gaps", {
     p_bpg_sources: bpg,
     p_competitor_sources: competitors,
     p_days: days,
     p_limit: 50,
+    p_wire_sources: wireSources,
   });
 
   if (error) {
@@ -53,5 +60,5 @@ export async function GET(request: NextRequest) {
     })
   );
 
-  return NextResponse.json({ gaps, days });
+  return NextResponse.json({ gaps, days, wire: wireMode });
 }
