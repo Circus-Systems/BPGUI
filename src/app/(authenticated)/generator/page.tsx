@@ -30,7 +30,7 @@ export default function GeneratorPage() {
   useEffect(() => {
     fetch("/api/publications")
       .then((r) => r.json())
-      .then(setPublications)
+      .then((d) => setPublications(d.publications ?? []))
       .catch(() => {});
 
     fetch("/api/generated-articles?status=draft&per_page=1")

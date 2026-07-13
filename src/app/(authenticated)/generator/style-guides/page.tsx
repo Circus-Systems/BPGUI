@@ -22,7 +22,9 @@ export default function StyleGuidesPage() {
       fetch("/api/publications").then((r) => r.json()),
       fetch("/api/style-guides").then((r) => r.json()),
     ]).then(([pubs, guides]) => {
-      setPublications(Array.isArray(pubs) ? pubs : []);
+      // /api/publications returns { publications: [...] }; /api/style-guides
+      // returns a bare array. Unwrap the former, keep the array guard on the latter.
+      setPublications(pubs?.publications ?? []);
       setStyleGuides(Array.isArray(guides) ? guides : []);
       setLoading(false);
     });
