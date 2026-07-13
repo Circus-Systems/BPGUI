@@ -269,6 +269,12 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
 
   const hc = data.headlineCoverage;
 
+  // "Where your coverage comes from" — per-source share from brand_trend,
+  // coloured to match the coverage bars above (0-safe: empty → hidden).
+  const mix = (data.publisherMix ?? []).slice(0, 5);
+  const mixColor = (s: string, i: number) =>
+    fillBySource.get(s) || SOURCE_COLORS[s] || CHART_PALETTE[i % CHART_PALETTE.length];
+
   return (
     <SlideShell
       number={9}
@@ -337,6 +343,46 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
           )}
         </div>
       </div>
+      {mix.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-muted mb-1.5">
+            Where your coverage comes from
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {mix.map((m, i) => (
+              <div
+                key={m.source_id}
+                className="flex items-center gap-1.5 text-xs"
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[2px]"
+                  style={{
+                    backgroundColor: m.is_bpg
+                      ? mixColor(m.source_id, i)
+                      : "transparent",
+                    border: `1.5px solid ${mixColor(m.source_id, i)}`,
+                  }}
+                />
+                <span
+                  className={
+                    m.is_bpg
+                      ? "font-semibold text-foreground"
+                      : "text-muted"
+                  }
+                >
+                  {sourceLabel(m.source_id)}
+                </span>
+                {m.is_bpg && (
+                  <span className="rounded-sm bg-accent/10 px-1 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                    BPG
+                  </span>
+                )}
+                <span className="tabular-nums text-foreground">{m.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {monthly.points.length > 0 && (
         <div className="mt-6">
           <p className="text-sm font-medium text-foreground mb-1">
@@ -372,12 +418,15 @@ export function S9CoverageSlide({ data }: { data: BriefDeckData }) {
 
 export function S10UniqueSlide({ data }: { data: BriefDeckData }) {
   const c = data.coverage;
+  const ftp = c.first_to_publish;
   const bpgFirstPct =
-    c.first_to_publish.total_shared > 0
-      ? Math.round(
-          (c.first_to_publish.bpg_first / c.first_to_publish.total_shared) * 100
-        )
+    ftp.total_shared > 0
+      ? Math.round((ftp.bpg_first / ftp.total_shared) * 100)
       : 0;
+  // Emphasis: only when there is shared coverage to be first on (0-safe —
+  // shared == 0 keeps the placeholder path below).
+  const showFirstEmphasis =
+    c.shared_coverage_count > 0 && ftp.total_shared > 0;
   return (
     <SlideShell
       number={10}
@@ -408,6 +457,16 @@ export function S10UniqueSlide({ data }: { data: BriefDeckData }) {
           </div>
         </div>
       </div>
+      {showFirstEmphasis && (
+        <div className="mb-4 rounded-md border-l-4 border-accent bg-accent/5 px-4 py-3">
+          <p className="text-sm text-foreground">
+            <span className="font-semibold">First to publish</span> on{" "}
+            <span className="font-semibold">{ftp.bpg_first}</span> of{" "}
+            <span className="font-semibold">{ftp.total_shared}</span> stories
+            that competitors also ran.
+          </p>
+        </div>
+      )}
       {uniqueCoverageAllZero(c) ? (
         <p className="text-xs text-muted italic">
           Story-clustering backfill in progress — figures will populate as

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useVertical } from "@/hooks/use-vertical";
 import { EntityTrendChart } from "./entity-trend-chart";
 import { EntityArticlesTable } from "./entity-articles-table";
@@ -149,6 +150,13 @@ export function EntityDetailModal({
                 </span>
               </div>
             )}
+            <Link
+              href={`/ledger/${encodeURIComponent(name)}`}
+              onClick={onClose}
+              className="mt-2 inline-block text-sm font-medium text-accent hover:text-accent-dark"
+            >
+              Value ledger →
+            </Link>
           </div>
           <button
             ref={closeRef}

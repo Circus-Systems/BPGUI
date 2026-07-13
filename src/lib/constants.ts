@@ -44,6 +44,9 @@ export const COMPETITOR_SOURCES: readonly string[] = [
   "ajp",
 ] as const;
 
+/** Press-release wire titles, excluded from first-to-story races. */
+export const WIRE_SOURCES = ["global-travel-media"] as const;
+
 /** Human-readable labels for each source_id */
 export const SOURCE_LABELS: Record<string, string> = {
   "travel-weekly": "Travel Weekly",
