@@ -23,9 +23,11 @@ interface Breakdown {
 export function PublicationCard({
   stat,
   days = 30,
+  onTitleClick,
 }: {
   stat: PublicationStat;
   days?: number;
+  onTitleClick?: (sourceId: string) => void;
 }) {
   const color = SOURCE_COLORS[stat.source_id] || "#71717A";
   const label = SOURCE_LABELS[stat.source_id] || stat.source_id;
@@ -67,9 +69,19 @@ export function PublicationCard({
           className="h-3 w-3 rounded-full shrink-0"
           style={{ backgroundColor: color }}
         />
-        <h3 className="text-sm font-semibold text-foreground truncate">
-          {label}
-        </h3>
+        {onTitleClick ? (
+          <button
+            type="button"
+            onClick={() => onTitleClick(stat.source_id)}
+            className="text-sm font-semibold text-accent hover:underline text-left truncate"
+          >
+            {label}
+          </button>
+        ) : (
+          <h3 className="text-sm font-semibold text-foreground truncate">
+            {label}
+          </h3>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">

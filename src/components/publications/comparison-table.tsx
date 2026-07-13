@@ -14,7 +14,13 @@ interface PublicationStat {
   first_pct: number | null;
 }
 
-export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
+export function ComparisonTable({
+  stats,
+  onPublicationClick,
+}: {
+  stats: PublicationStat[];
+  onPublicationClick?: (sourceId: string) => void;
+}) {
   if (stats.length === 0) return null;
 
   const maxArticles = Math.max(...stats.map((s) => s.article_count));
@@ -50,9 +56,19 @@ export function ComparisonTable({ stats }: { stats: PublicationStat[] }) {
                         className="h-2.5 w-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: color }}
                       />
-                      <span className="font-medium text-foreground">
-                        {SOURCE_LABELS[stat.source_id] || stat.source_id}
-                      </span>
+                      {onPublicationClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onPublicationClick(stat.source_id)}
+                          className="font-medium text-accent hover:underline text-left"
+                        >
+                          {SOURCE_LABELS[stat.source_id] || stat.source_id}
+                        </button>
+                      ) : (
+                        <span className="font-medium text-foreground">
+                          {SOURCE_LABELS[stat.source_id] || stat.source_id}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="py-2.5 pr-4 text-right text-foreground">

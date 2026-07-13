@@ -1,6 +1,7 @@
 "use client";
 
 import { useVertical } from "@/hooks/use-vertical";
+import { usePublicationDetail } from "@/providers/publication-detail-provider";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { VERTICAL_SOURCES } from "@/lib/constants";
@@ -32,6 +33,7 @@ const PRESET_VALUES = PERIOD_PRESETS.map((p) => p.value);
 
 function PublicationsContent() {
   const { vertical } = useVertical();
+  const { openPublication } = usePublicationDetail();
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -256,7 +258,7 @@ function PublicationsContent() {
             <VolumeChart timeline={timeline} sourceIds={selectedSources} />
 
             {/* Comparison table */}
-            <ComparisonTable stats={stats} />
+            <ComparisonTable stats={stats} onPublicationClick={openPublication} />
 
             {/* Publication cards grid */}
             <div>
@@ -276,6 +278,7 @@ function PublicationsContent() {
                       key={stat.source_id}
                       stat={stat}
                       days={periodDays}
+                      onTitleClick={openPublication}
                     />
                   ))}
                 </div>
