@@ -37,7 +37,7 @@ export async function GET(
   // Get all entity mentions
   let mentionsQuery = supabase
     .from("article_entities")
-    .select("source_id, external_id, entity_type, confidence, mention_count, in_title, sentiment")
+    .select("source_id, external_id, entity_type, mention_count, in_title, sentiment")
     .eq("entity_name", entityName)
     .in("source_id", [...sources]);
   if (fromIso) mentionsQuery = mentionsQuery.gte("published_at_ts", fromIso);

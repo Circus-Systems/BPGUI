@@ -11,7 +11,6 @@ interface Entity {
   entity_type: string;
   total_mentions: number;
   article_count: number;
-  avg_confidence: number;
   in_title_pct: number;
   top_sentiment: string;
 }
