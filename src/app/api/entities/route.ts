@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // and aggregate in the API route
   let query = supabase
     .from("article_entities")
-    .select("entity_name, entity_type, confidence, mention_count, in_title, sentiment")
+    .select("entity_name, entity_type, mention_count, in_title, sentiment")
     .in("source_id", [...sources]);
 
   if (entityType !== "all") {
@@ -66,7 +66,6 @@ export async function GET(request: NextRequest) {
     entity_type: string;
     total_mentions: number;
     article_count: number;
-    total_confidence: number;
     in_title_count: number;
     sentiments: Record<string, number>;
   }>();
@@ -77,7 +76,6 @@ export async function GET(request: NextRequest) {
     if (existing) {
       existing.total_mentions += row.mention_count || 1;
       existing.article_count += 1;
-      existing.total_confidence += row.confidence || 0;
       existing.in_title_count += row.in_title || 0;
       if (row.sentiment) {
         existing.sentiments[row.sentiment] = (existing.sentiments[row.sentiment] || 0) + 1;
@@ -88,7 +86,6 @@ export async function GET(request: NextRequest) {
         entity_type: row.entity_type,
         total_mentions: row.mention_count || 1,
         article_count: 1,
-        total_confidence: row.confidence || 0,
         in_title_count: row.in_title || 0,
         sentiments: row.sentiment ? { [row.sentiment]: 1 } : {},
       });
@@ -102,7 +99,6 @@ export async function GET(request: NextRequest) {
       entity_type: e.entity_type,
       total_mentions: e.total_mentions,
       article_count: e.article_count,
-      avg_confidence: e.article_count > 0 ? e.total_confidence / e.article_count : 0,
       in_title_pct: e.article_count > 0 ? e.in_title_count / e.article_count : 0,
       top_sentiment: Object.entries(e.sentiments).sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral",
     }))

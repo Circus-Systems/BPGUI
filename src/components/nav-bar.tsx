@@ -13,7 +13,6 @@ const NAV_ITEMS = [
   { href: "/editorial-compare", label: "Editorial Compare" },
   { href: "/benchmark", label: "Benchmark" },
   { href: "/brief", label: "Briefs" },
-  { href: "/generator", label: "Generator" },
   { href: "/help", label: "Help" },
 ];
 

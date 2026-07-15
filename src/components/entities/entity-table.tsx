@@ -5,7 +5,6 @@ interface Entity {
   entity_type: string;
   total_mentions: number;
   article_count: number;
-  avg_confidence: number;
   in_title_pct: number;
   top_sentiment: string;
 }
@@ -35,11 +34,8 @@ export function EntityTable({
             <th className="pb-2 pr-4 font-medium text-muted text-right">
               Mentions
             </th>
-            <th className="pb-2 pr-4 font-medium text-muted text-right">
-              Articles
-            </th>
             <th className="pb-2 font-medium text-muted text-right">
-              Confidence
+              Articles
             </th>
           </tr>
         </thead>
@@ -69,11 +65,8 @@ export function EntityTable({
               <td className="py-2.5 pr-4 text-right text-foreground">
                 {entity.total_mentions.toLocaleString()}
               </td>
-              <td className="py-2.5 pr-4 text-right text-muted">
-                {entity.article_count.toLocaleString()}
-              </td>
               <td className="py-2.5 text-right text-muted">
-                {(entity.avg_confidence * 100).toFixed(0)}%
+                {entity.article_count.toLocaleString()}
               </td>
             </tr>
           ))}

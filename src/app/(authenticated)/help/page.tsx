@@ -51,12 +51,17 @@ const SITE_MAP: Array<{
       {
         href: "/entities",
         name: "Entities",
-        desc: "Brands, destinations and industry bodies extracted from every article, grouped by canonical brand (e.g. NCL and Norwegian Cruise Line count as one).",
+        desc: "Brands, destinations and industry bodies extracted from every article, grouped by canonical brand (e.g. NCL and Norwegian Cruise Line count as one). Click any row to open its full coverage view.",
       },
       {
         href: "/publications",
         name: "Publications",
-        desc: "Publisher-vs-publisher output: volumes, cadence, sponsored share. Compare any subset of publications over any period.",
+        desc: "Publisher-vs-publisher output: volumes, cadence, sponsored share, brands covered and first-to-story rate. Compare any subset over any period; click a title to drill into the brands it covers.",
+      },
+      {
+        href: "/editorial-compare",
+        name: "Editorial Compare",
+        desc: "For the newsroom: coverage gaps (stories competitors ran that BPG didn't) and a speed report of who publishes first. Click a story to see every title's take.",
       },
       {
         href: "/health",
@@ -68,6 +73,21 @@ const SITE_MAP: Array<{
   {
     group: "Sell",
     items: [
+      {
+        href: "/sales-radar",
+        name: "Sales Radar",
+        desc: "Coverage-derived prospect lists for sales: momentum, whitespace, competitor affinity and emerging brands. Click a brand for its full story. Editorial signals only — not advertising spend.",
+      },
+      {
+        href: "/benchmark",
+        name: "Benchmark",
+        desc: "“The Evidence” — a printable one-pager per BPG title: reach, brands covered, first-to-story rate vs competitors, and a 12-month volume trend. Print / Save PDF.",
+      },
+      {
+        href: "/entities",
+        name: "Value ledger",
+        desc: "Printable Partnership Value Ledger (QBR one-pager) per brand — quarterly BPG vs competitor coverage, exclusives, first-runs and promotional value. Opened from the “Value ledger →” link in any brand's detail view (or /ledger/<brand> directly).",
+      },
       {
         href: "/brief",
         name: "Briefs",
@@ -82,11 +102,6 @@ const SITE_MAP: Array<{
         href: "/chat",
         name: "Chat",
         desc: "Ask the data questions in plain English (“who covered Scenic most this quarter?”). Answers come with charts and tables.",
-      },
-      {
-        href: "/generator",
-        name: "Generator",
-        desc: "AI article drafting: research a topic, generate a draft in a publication's style guide, edit, finalise.",
       },
       {
         href: "/brief#recommendations",
@@ -196,15 +211,102 @@ const FAQ: Array<{ q: string; a: React.ReactNode }> = [
     ),
   },
   {
-    q: "How are brand names grouped?",
+    q: "What are canonical brands and aliases? How are brand names grouped?",
+    a: (
+      <>
+        <p>
+          A canonical brand registry groups aliases: NCL, Norwegian Cruise Line and ship names like Norwegian
+          Spirit all count as <em>Norwegian Cruise Line</em>. Ambiguous words stay separate on purpose —
+          “Norwegian” alone is not merged (it collides with the airline), and Norwegian Cruise Line Holdings is
+          kept distinct as the parent group. Brand names that double as common words (Scenic, Voyages, Celebrity…)
+          require the brand&apos;s exact capitalisation and a material presence before they&apos;re tagged, so
+          “scenic sunsets” never counts toward Scenic.
+        </p>
+        <p className="mt-2">
+          Every brand-level view (Entities, the entity and publication detail modals, Sales Radar, the ledger and
+          the briefs) counts only <strong>canonically-tagged</strong> mentions — currently a bit over half of all
+          raw mentions. Long-tail entities that aren&apos;t grouped into the registry yet won&apos;t appear in
+          those brand rollups, even though their articles are still searchable on the Articles page.
+        </p>
+      </>
+    ),
+  },
+  {
+    q: "What’s in a brand or publication detail view?",
+    a: (
+      <>
+        <p>
+          Click any company — on{" "}
+          <Link className="text-accent underline" href="/entities">
+            Entities
+          </Link>{" "}
+          or{" "}
+          <Link className="text-accent underline" href="/sales-radar">
+            Sales Radar
+          </Link>{" "}
+          — to open its full-screen <strong>brand detail view</strong>: a monthly coverage chart stacked by
+          publication (12 months / 24 months / 5 years / all time), a headline-share chip, and the full article
+          list (date, title, publication, journalist, word count, plus Headline / Sponsored badges), paged with
+          “Load more”. Journalist reads “—” for titles that don&apos;t carry bylines (e.g. KarryOn, LATTE, Cruise
+          Industry News, AJP). A “Value ledger →” link jumps to that brand&apos;s QBR one-pager. It&apos;s
+          deep-linkable via <code className="text-xs">?entity=</code>.
+        </p>
+        <p className="mt-2">
+          Clicking a title on{" "}
+          <Link className="text-accent underline" href="/publications">
+            Publications
+          </Link>{" "}
+          opens the matching <strong>publication detail view</strong>: its top brands as a stacked monthly chart
+          plus a ranked list (articles, headline, share). Click any brand there to chain straight into that
+          brand&apos;s detail view. Deep-linkable via <code className="text-xs">?publication=</code>.
+        </p>
+      </>
+    ),
+  },
+  {
+    q: "What is “headline coverage”?",
     a: (
       <p>
-        A canonical brand registry groups aliases: NCL, Norwegian Cruise Line and ship names like Norwegian Spirit
-        all count as <em>Norwegian Cruise Line</em>. Ambiguous words stay separate on purpose — “Norwegian”
-        alone is not merged (it collides with the airline), and Norwegian Cruise Line Holdings is kept distinct as
-        the parent group. Brand names that double as common words (Scenic, Voyages, Celebrity…) require the
-        brand&apos;s exact capitalisation and a material presence before they&apos;re tagged, so “scenic
-        sunsets” never counts toward Scenic.
+        A headline article is one whose title actually contains the brand — the strongest form of coverage, since
+        the brand is what the story is about rather than a passing mention. Brand views surface it as a “headline”
+        badge on each article and as a <strong>headline share</strong> chip (the percentage of a brand&apos;s
+        coverage that named it in the headline). The brief reports the same figure as “% of coverage put the brand
+        in the headline”.
+      </p>
+    ),
+  },
+  {
+    q: "What is “first to story” / the story race?",
+    a: (
+      <p>
+        Articles across the actively-collected titles are clustered into stories. When a story ran in{" "}
+        <strong>two or more sources</strong>, the earliest to publish is credited as <strong>first to story</strong>.
+        The story-race panels (Editorial Compare), the first-to-story % on Publications and Benchmark, and the
+        speed report all draw on this. Two caveats keep it like-for-like: clustering only covers{" "}
+        <strong>Jul 2025 onward</strong>, and <em>wire</em> titles are excluded from the race (see below). Single-source
+        stories aren&apos;t races, so they don&apos;t count for or against anyone.
+      </p>
+    ),
+  },
+  {
+    q: "What is an “exclusive” story?",
+    a: (
+      <p>
+        A story only one actively-collected outlet ran — no other title covered it at all. On the Articles page it
+        shows as an <strong>Exclusive</strong> badge; in the ledger and briefs, exclusives are counted alongside
+        first-runs as coverage a partner got nowhere else.
+      </p>
+    ),
+  },
+  {
+    q: "What are “wire” titles, and why are they excluded from races?",
+    a: (
+      <p>
+        Some titles (e.g. Global Travel Media) largely republish press releases verbatim rather than reporting
+        stories themselves. Counting them in the first-to-story race would reward re-posting a release over
+        original journalism, so wire titles are <strong>excluded from the race and from coverage-gap lists by
+        default</strong> — the “Hide wire-only stories” toggle on Editorial Compare is on to start with. They&apos;re
+        badged <em>Wire</em> wherever they still appear so the comparison stays like-for-like.
       </p>
     ),
   },
@@ -317,12 +419,24 @@ export default function HelpPage() {
             and clusters the same story across publications so we know who ran it exclusively and who ran it first.
           </p>
           <p>
-            On top of that data it does two jobs: <strong>analysis</strong> (searchable coverage, publisher
-            benchmarking, share of voice) and <strong>selling</strong> — the{" "}
+            On top of that data it does two jobs. <strong>Analysis</strong>: searchable coverage, publisher
+            benchmarking, share of voice, per-brand and per-publication detail views, and{" "}
+            <Link href="/editorial-compare" className="text-accent underline">
+              Editorial Compare
+            </Link>{" "}
+            for the newsroom (coverage gaps and who publishes first). <strong>Selling</strong>:{" "}
+            <Link href="/sales-radar" className="text-accent underline">
+              Sales Radar
+            </Link>{" "}
+            prospect lists, a printable{" "}
+            <Link href="/benchmark" className="text-accent underline">
+              Benchmark
+            </Link>{" "}
+            evidence sheet, per-brand value ledgers, and the{" "}
             <Link href="/brief" className="text-accent underline">
               Key Partner Meeting brief
-            </Link>
-            , a 20-slide client-ready deck that assembles a brand&apos;s complete coverage story automatically.
+            </Link>{" "}
+            — a 20-slide client-ready deck that assembles a brand&apos;s complete coverage story automatically.
           </p>
           <div>
             <p className="font-medium mb-2">Publications tracked</p>
@@ -356,7 +470,49 @@ export default function HelpPage() {
         <h2 className="text-lg font-semibold text-foreground mb-3">How to use it</h2>
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-white p-5 text-sm space-y-2">
-            <h3 className="font-semibold text-foreground">Prepare for a client meeting (the main workflow)</h3>
+            <h3 className="font-semibold text-foreground">The weekly workflow (end to end)</h3>
+            <p className="text-foreground">
+              Sales and editorial run one loop off the same coverage data:
+            </p>
+            <ol className="list-decimal ml-5 space-y-1.5 text-foreground">
+              <li>
+                <strong>Triage prospects.</strong>{" "}
+                <Link href="/sales-radar" className="text-accent underline">
+                  Sales Radar
+                </Link>{" "}
+                surfaces brands spiking, competitor whitespace and newly emerging names to reach out to this week.
+              </li>
+              <li>
+                <strong>Get the story.</strong> Click any brand to open its detail view — monthly coverage by
+                title, headline share and every article behind the numbers.
+              </li>
+              <li>
+                <strong>Prove the value.</strong> From that view, follow <em>Value ledger →</em> for a QBR
+                one-pager: quarterly BPG vs competitor coverage, exclusives, first-runs and promotional value.
+              </li>
+              <li>
+                <strong>Pitch.</strong>{" "}
+                <Link href="/benchmark" className="text-accent underline">
+                  Benchmark
+                </Link>{" "}
+                prints “The Evidence” for a BPG title; the{" "}
+                <Link href="/brief" className="text-accent underline">
+                  brief
+                </Link>{" "}
+                builds the full Key Partner Meeting deck.
+              </li>
+              <li>
+                <strong>Arm the newsroom.</strong>{" "}
+                <Link href="/editorial-compare" className="text-accent underline">
+                  Editorial Compare
+                </Link>{" "}
+                shows the stories competitors ran that BPG didn&apos;t, and who&apos;s first to publish.
+              </li>
+            </ol>
+          </div>
+
+          <div className="rounded-lg border border-border bg-white p-5 text-sm space-y-2">
+            <h3 className="font-semibold text-foreground">Prepare for a client meeting</h3>
             <ol className="list-decimal ml-5 space-y-1.5 text-foreground">
               <li>
                 Open{" "}
@@ -391,13 +547,23 @@ export default function HelpPage() {
                 <Link href="/entities" className="text-accent underline">
                   Entities
                 </Link>
-                : who gets covered, how often, with what sentiment — grouped by canonical brand.
+                : who gets covered, how often — grouped by canonical brand. Click any row for the full detail view
+                (monthly coverage by title, headline share, every article) — deep-linkable via{" "}
+                <code className="text-xs">?entity=</code>.
               </li>
               <li>
                 <Link href="/publications" className="text-accent underline">
                   Publications
                 </Link>
-                : compare publishers head-to-head on volume and cadence over any window.
+                : compare publishers head-to-head on volume, cadence, brands covered and first-to-story rate over
+                any window. Click a title for its top brands, then chain into any brand&apos;s detail view.
+              </li>
+              <li>
+                <Link href="/editorial-compare" className="text-accent underline">
+                  Editorial Compare
+                </Link>
+                : the newsroom&apos;s view — coverage gaps competitors ran that BPG didn&apos;t, and a speed report
+                of who publishes first.
               </li>
               <li>
                 <Link href="/chat" className="text-accent underline">
@@ -481,6 +647,14 @@ export default function HelpPage() {
             </div>
           ))}
         </div>
+        <p className="mt-4 text-xs text-muted">
+          The AI article generator (research a topic, draft it in a publication&apos;s style guide, finalise) is no
+          longer in the top navigation, but remains available at{" "}
+          <Link href="/generator" className="text-accent underline">
+            /generator
+          </Link>{" "}
+          by direct link.
+        </p>
       </section>
 
       <p className="text-xs text-muted border-t border-border pt-4">
