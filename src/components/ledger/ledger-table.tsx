@@ -1,6 +1,20 @@
 "use client";
 
 import { quarterLabel, formatAudCompact, type LedgerRow } from "./format-value";
+import { DownloadCsvButton } from "@/components/download-csv-button";
+import { csvFilename } from "@/lib/csv";
+
+const CSV_HEADERS = [
+  "Quarter",
+  "BPG articles",
+  "Headline",
+  "Competitor articles",
+  "Exclusives",
+  "First",
+  "Value min",
+  "Value mid",
+  "Value max",
+];
 
 /**
  * Quarterly detail table. Value shows the mid estimate with the ±15% band as
@@ -12,9 +26,31 @@ export function LedgerTable({ rows }: { rows: LedgerRow[] }) {
       className="rounded-xl border border-border bg-white p-4"
       style={{ breakInside: "avoid" }}
     >
-      <h3 className="mb-4 text-sm font-medium text-foreground">
-        Quarterly detail
-      </h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">Quarterly detail</h3>
+        <DownloadCsvButton
+          filename={csvFilename([
+            "ledger",
+            rows.length > 0 ? quarterLabel(rows[0].quarter) : null,
+            rows.length > 0 ? quarterLabel(rows[rows.length - 1].quarter) : null,
+          ])}
+          headers={CSV_HEADERS}
+          disabled={rows.length === 0}
+          getRows={() =>
+            rows.map((r) => [
+              quarterLabel(r.quarter),
+              r.bpg_articles,
+              r.bpg_title_articles,
+              r.competitor_articles,
+              r.exclusive_stories,
+              r.first_stories,
+              r.value_min,
+              r.value_mid,
+              r.value_max,
+            ])
+          }
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

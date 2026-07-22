@@ -2,6 +2,17 @@
 
 import { SOURCE_LABELS, BPG_SOURCES } from "@/lib/constants";
 import { formatLagHours } from "./format-lag";
+import { DownloadCsvButton } from "@/components/download-csv-button";
+import { csvFilename } from "@/lib/csv";
+
+const CSV_HEADERS = [
+  "Publication",
+  "Is wire",
+  "Multi-source stories",
+  "First",
+  "First %",
+  "Median lag hours",
+];
 
 export interface SpeedRow {
   source_id: string;
@@ -14,8 +25,26 @@ export interface SpeedRow {
 
 export function SpeedTable({ report }: { report: SpeedRow[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div>
+      <div className="mb-2 flex justify-end">
+        <DownloadCsvButton
+          filename={csvFilename(["editorial-compare", "speed"])}
+          headers={CSV_HEADERS}
+          disabled={report.length === 0}
+          getRows={() =>
+            report.map((row) => [
+              SOURCE_LABELS[row.source_id] || row.source_id,
+              row.is_wire ? "yes" : "no",
+              row.stories_total,
+              row.first_count,
+              Number(row.first_pct.toFixed(1)),
+              row.median_lag_hours,
+            ])
+          }
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left">
             <th className="pb-2 pr-4 font-medium text-muted">Publication</th>
@@ -82,6 +111,7 @@ export function SpeedTable({ report }: { report: SpeedRow[] }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

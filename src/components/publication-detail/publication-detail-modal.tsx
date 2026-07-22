@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVertical } from "@/hooks/use-vertical";
 import { useEntityDetail } from "@/providers/entity-detail-provider";
+import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
 import { PublicationBrandChart } from "./publication-brand-chart";
 import { PublicationBrandsTable } from "./publication-brands-table";
@@ -196,6 +197,16 @@ export function PublicationDetailModal({
               {opt.label}
             </button>
           ))}
+          <div className="ml-auto">
+            <ExportCsvButton
+              url={`/api/export/publication-brands?${new URLSearchParams({
+                source,
+                vertical,
+                months: String(months),
+              })}`}
+              disabled={loading || !!error || total === 0}
+            />
+          </div>
         </div>
 
         {/* Body */}

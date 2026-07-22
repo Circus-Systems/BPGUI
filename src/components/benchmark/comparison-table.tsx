@@ -2,6 +2,18 @@
 
 import { SOURCE_LABELS } from "@/lib/constants";
 import { formatLagHours } from "@/components/editorial-compare/format-lag";
+import { DownloadCsvButton } from "@/components/download-csv-button";
+import { csvFilename } from "@/lib/csv";
+
+const CSV_HEADERS = [
+  "Publication",
+  "Articles",
+  "Per day",
+  "Brands covered",
+  "First-to-story %",
+  "Median lag hours",
+  "Is wire",
+];
 
 export interface BenchmarkRow {
   source_id: string;
@@ -29,9 +41,27 @@ export function ComparisonTable({
       className="rounded-xl border border-border bg-white p-4"
       style={{ breakInside: "avoid" }}
     >
-      <h3 className="mb-4 text-sm font-medium text-foreground">
-        {SOURCE_LABELS[selectedId] || selectedId} vs competitors — last 12 months
-      </h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">
+          {SOURCE_LABELS[selectedId] || selectedId} vs competitors — last 12 months
+        </h3>
+        <DownloadCsvButton
+          filename={csvFilename(["benchmark", selectedId])}
+          headers={CSV_HEADERS}
+          disabled={rows.length === 0}
+          getRows={() =>
+            rows.map((row) => [
+              SOURCE_LABELS[row.source_id] || row.source_id,
+              row.article_count,
+              row.articles_per_day,
+              row.brands_covered,
+              row.first_pct == null ? null : Number(row.first_pct.toFixed(1)),
+              row.median_lag_hours,
+              row.is_wire ? "yes" : "no",
+            ])
+          }
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

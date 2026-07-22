@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { FilterBar } from "@/components/articles/filter-bar";
 import { ArticleCard } from "@/components/articles/article-card";
 import { ArticleDetail } from "@/components/articles/article-detail";
+import { ExportCsvButton } from "@/components/export/export-csv-button";
 
 interface Article {
   id: number;
@@ -174,6 +175,15 @@ function ArticlesPageInner() {
     fetchArticles(articles.length, true);
   }
 
+  // Full-dataset CSV export mirrors the live article filters (minus pagination).
+  const exportParams = new URLSearchParams({ vertical, sponsored });
+  if (urlSearch) exportParams.set("search", urlSearch);
+  if (sources.length > 0) exportParams.set("sources", sources.join(","));
+  if (from) exportParams.set("from", from);
+  if (to) exportParams.set("to", to);
+  if (!from && !to && dateRange !== "all") exportParams.set("days", dateRange);
+  const exportUrl = `/api/export/articles?${exportParams}`;
+
   return (
     <main className="flex-1 px-4 py-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -203,6 +213,13 @@ function ArticlesPageInner() {
           }
           publications={publications}
         />
+
+        <div className="flex justify-end">
+          <ExportCsvButton
+            url={exportUrl}
+            disabled={loading || articles.length === 0}
+          />
+        </div>
 
         {/* Results count */}
         {!loading && (
