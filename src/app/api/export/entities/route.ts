@@ -6,6 +6,9 @@ import {
 import { toCsvResponse, safeSegment, type CsvCell } from "../_lib/csv";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Aggregation may page up to 100 sequential 1000-row reads (cold) → raise limit.
+export const maxDuration = 60;
+
 const ROW_CEILING = 30000;
 
 export async function GET(request: NextRequest) {

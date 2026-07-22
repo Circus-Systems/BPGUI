@@ -4,11 +4,14 @@ import type { VerticalCode } from "@/hooks/use-vertical";
 import { NextResponse, type NextRequest } from "next/server";
 import { toCsvResponse, safeSegment, type CsvCell } from "../_lib/csv";
 
+// Up to 30 sequential 1000-row chunks (cold) can exceed the default duration.
+export const maxDuration = 60;
+
 const ALLOWED_MONTHS = new Set([12, 24, 60, 240]);
-// Worst case is 3,320 rows, so a single 10k call never truncates. Chunking would
-// be slower here (each chunk re-scans), so we fetch once. months=240 runs ~7s —
-// close to the 8s statement timeout — so a timeout is surfaced as a 504 below.
-const FETCH_LIMIT = 10000;
+// PostgREST caps EVERY response at max-rows=1000 project-wide, so a single 10k
+// call silently truncates (travel-daily 12mo = 1,339 brands). Page in 1000-row
+// chunks, stopping on the exact total_count in row 1, a short page, or ceiling.
+const PAGE_SIZE = 1000;
 const ROW_CEILING = 30000;
 
 interface BrandRpcRow {
@@ -18,6 +21,7 @@ interface BrandRpcRow {
   articles: number | string;
   title_articles: number | string;
   share_pct: number | string | null;
+  total_count: number | string;
 }
 
 export async function GET(request: NextRequest) {
@@ -56,28 +60,40 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
-  // Single call — see FETCH_LIMIT note above.
-  const { data, error } = await supabase.rpc("publication_brands", {
-    p_source: source,
-    p_months: months,
-    p_limit: FETCH_LIMIT,
-    p_offset: 0,
-  });
+  // Page through publication_brands in 1000-row chunks (PostgREST max-rows cap).
+  const all: BrandRpcRow[] = [];
+  let offset = 0;
+  let total = Infinity;
+  while (offset < ROW_CEILING) {
+    const { data, error } = await supabase.rpc("publication_brands", {
+      p_source: source,
+      p_months: months,
+      p_limit: PAGE_SIZE,
+      p_offset: offset,
+    });
 
-  if (error) {
-    // Postgres statement timeout (57014) → the window is too heavy to compute.
-    const isTimeout =
-      error.code === "57014" || /statement timeout/i.test(error.message || "");
-    if (isTimeout) {
-      return NextResponse.json(
-        { error: "window too large — try a shorter window" },
-        { status: 504 }
-      );
+    if (error) {
+      // Postgres statement timeout (57014) → the window is too heavy to compute.
+      const isTimeout =
+        error.code === "57014" ||
+        /statement timeout/i.test(error.message || "");
+      if (isTimeout) {
+        return NextResponse.json(
+          { error: "window too large — try a shorter window" },
+          { status: 504 }
+        );
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
 
-  const capped = ((data || []) as BrandRpcRow[]).slice(0, ROW_CEILING);
+    const page = (data || []) as BrandRpcRow[];
+    if (page.length === 0) break;
+    if (offset === 0) total = Number(page[0].total_count) || page.length;
+    all.push(...page);
+    offset += PAGE_SIZE;
+    if (all.length >= total || page.length < PAGE_SIZE) break;
+  }
+  const capped = all.slice(0, ROW_CEILING);
 
   const headers = [
     "rank",

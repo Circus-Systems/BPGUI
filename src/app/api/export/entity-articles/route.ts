@@ -5,11 +5,14 @@ import type { VerticalCode } from "@/hooks/use-vertical";
 import { NextResponse, type NextRequest } from "next/server";
 import { toCsvResponse, safeSegment, type CsvCell } from "../_lib/csv";
 
+// Up to 30 sequential 1000-row chunks (cold) can exceed the default duration.
+export const maxDuration = 60;
+
 const ALLOWED_MONTHS = new Set([12, 24, 60, 240]);
-// Chunk at 5k: a cold 10k call measured 6.84s (too close to the 8s authenticated
-// statement timeout) and the worst case (13,545 rows) exceeds 10k anyway. Each 5k
-// chunk is ~0.3s warm / ~4s cold worst — safe. Loop until a short page or ceiling.
-const PAGE_SIZE = 5000;
+// PostgREST caps EVERY response at max-rows=1000 project-wide, regardless of the
+// RPC's p_limit. So we must page in chunks of 1000 (p_offset += 1000) and stop
+// on the exact total_count carried in row 1, a short page, or the 30k ceiling.
+const PAGE_SIZE = 1000;
 const ROW_CEILING = 30000;
 
 interface ArticleRpcRow {
@@ -21,6 +24,7 @@ interface ArticleRpcRow {
   author_name: string | null;
   in_title: number | string;
   is_sponsored: number | string;
+  total_count: number | string;
 }
 
 export async function GET(request: NextRequest) {
@@ -55,9 +59,10 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   try {
-    // Page through entity_articles until a short page or the row ceiling.
+    // Page through entity_articles in 1000-row chunks (PostgREST max-rows cap).
     const all: ArticleRpcRow[] = [];
     let offset = 0;
+    let total = Infinity;
     while (offset < ROW_CEILING) {
       const { data, error } = await supabase.rpc("entity_articles", {
         p_name: entity,
@@ -68,9 +73,11 @@ export async function GET(request: NextRequest) {
       });
       if (error) throw new Error(error.message);
       const page = (data || []) as ArticleRpcRow[];
+      if (page.length === 0) break;
+      if (offset === 0) total = Number(page[0].total_count) || page.length;
       all.push(...page);
-      if (page.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
+      if (all.length >= total || page.length < PAGE_SIZE) break;
     }
     const capped = all.slice(0, ROW_CEILING);
 
