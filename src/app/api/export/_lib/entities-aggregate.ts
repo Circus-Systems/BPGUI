@@ -47,6 +47,12 @@ interface RawEntityRow {
   sentiment: string | null;
 }
 
+// PostgREST caps every response at max-rows=1000, so a single .limit(10000) call
+// silently truncated to 1000 mention rows — the list page was under-counting busy
+// windows before this fix. We page .range() in 1000s up to a bounded ceiling.
+const RAW_PAGE_SIZE = 1000;
+const RAW_ROW_CEILING = 100000;
+
 /**
  * Query article_entities and aggregate by (entity_name, entity_type), returning
  * the full sorted list. This is the same GROUP-BY-in-JS the list API used before
@@ -75,23 +81,34 @@ export async function aggregateEntities(
     fromIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  let query = supabase
-    .from("article_entities")
-    .select("entity_name, entity_type, mention_count, in_title, sentiment")
-    .in("source_id", [...sources]);
+  // Build a fresh query per page — a PostgREST builder is a single-use thenable,
+  // so it can't be re-awaited across loop iterations.
+  const buildBase = () => {
+    let q = supabase
+      .from("article_entities")
+      .select("entity_name, entity_type, mention_count, in_title, sentiment")
+      .in("source_id", [...sources]);
+    if (p.entityType !== "all") q = q.eq("entity_type", p.entityType);
+    if (p.search) q = q.ilike("entity_name", `%${p.search}%`);
+    if (fromIso) q = q.gte("published_at_ts", fromIso);
+    if (toIso) q = q.lte("published_at_ts", toIso);
+    return q;
+  };
 
-  if (p.entityType !== "all") {
-    query = query.eq("entity_type", p.entityType);
+  // Page all matching mention rows (1000/page) up to the raw-row ceiling.
+  const rows: RawEntityRow[] = [];
+  let offset = 0;
+  while (offset < RAW_ROW_CEILING) {
+    const { data, error } = await buildBase().range(
+      offset,
+      offset + RAW_PAGE_SIZE - 1
+    );
+    if (error) return { entities: [], error: error.message };
+    const page = (data || []) as RawEntityRow[];
+    rows.push(...page);
+    if (page.length < RAW_PAGE_SIZE) break;
+    offset += RAW_PAGE_SIZE;
   }
-  if (p.search) {
-    query = query.ilike("entity_name", `%${p.search}%`);
-  }
-  if (fromIso) query = query.gte("published_at_ts", fromIso);
-  if (toIso) query = query.lte("published_at_ts", toIso);
-
-  // Fetch all matching entities for aggregation (capped to avoid huge payloads).
-  const { data: rows, error } = await query.limit(10000);
-  if (error) return { entities: [], error: error.message };
 
   const entityMap = new Map<
     string,
@@ -105,7 +122,7 @@ export async function aggregateEntities(
     }
   >();
 
-  for (const row of (rows || []) as RawEntityRow[]) {
+  for (const row of rows) {
     const key = `${row.entity_name}||${row.entity_type}`;
     const existing = entityMap.get(key);
     if (existing) {

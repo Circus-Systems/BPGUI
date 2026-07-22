@@ -5,7 +5,12 @@ import type { VerticalCode } from "@/hooks/use-vertical";
 import { NextResponse, type NextRequest } from "next/server";
 import { toCsvResponse, type CsvCell } from "../_lib/csv";
 
-const PAGE_SIZE = 10000;
+// Up to 30 sequential 1000-row chunks (cold) can exceed the default duration.
+export const maxDuration = 60;
+
+// PostgREST caps EVERY response at max-rows=1000, so .range() pages must be 1000
+// wide (range(i, i+999)); a wider range silently truncates to the first 1000.
+const PAGE_SIZE = 1000;
 const ROW_CEILING = 30000;
 
 /** Add one day to a YYYY-MM-DD date string, returning YYYY-MM-DD. */

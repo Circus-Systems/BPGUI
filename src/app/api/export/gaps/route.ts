@@ -9,8 +9,14 @@ import {
 } from "@/app/api/editorial-compare/sources";
 import { toCsvResponse, type CsvCell } from "../_lib/csv";
 
+export const maxDuration = 60;
+
 const ALLOWED_DAYS = [7, 14, 30] as const;
-const GAP_LIMIT = 5000; // coverage_gaps has no server-side clamp
+// PostgREST caps every response at max-rows=1000, so page coverage_gaps via its
+// p_offset param (added to production): p_limit=1000, p_offset += 1000, until a
+// short page or the 30k ceiling.
+const PAGE_SIZE = 1000;
+const ROW_CEILING = 30000;
 
 interface GapRpcRow {
   cluster_id: number | string;
@@ -34,17 +40,28 @@ export async function GET(request: NextRequest) {
   const wireSources = wireMode === "exclude" ? [...WIRE_SOURCES] : [];
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("coverage_gaps", {
-    p_bpg_sources: bpg,
-    p_competitor_sources: competitors,
-    p_days: days,
-    p_limit: GAP_LIMIT,
-    p_wire_sources: wireSources,
-  });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // Page through coverage_gaps in 1000-row chunks (PostgREST max-rows cap).
+  const all: GapRpcRow[] = [];
+  let offset = 0;
+  while (offset < ROW_CEILING) {
+    const { data, error } = await supabase.rpc("coverage_gaps", {
+      p_bpg_sources: bpg,
+      p_competitor_sources: competitors,
+      p_days: days,
+      p_limit: PAGE_SIZE,
+      p_wire_sources: wireSources,
+      p_offset: offset,
+    });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    const page = (data || []) as GapRpcRow[];
+    all.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
+  const capped = all.slice(0, ROW_CEILING);
 
   const headers = [
     "title",
@@ -54,7 +71,7 @@ export async function GET(request: NextRequest) {
     "article_count",
     "first_published_at",
   ];
-  const rows: CsvCell[][] = ((data || []) as GapRpcRow[]).map((r) => [
+  const rows: CsvCell[][] = capped.map((r) => [
     decodeHtmlEntities(r.title || ""),
     r.url,
     (r.sources || []).join(";"),

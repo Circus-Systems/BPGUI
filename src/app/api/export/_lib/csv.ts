@@ -46,9 +46,18 @@ export function toCsvResponse(
     lines.push(row.map(escapeCell).join(","));
   }
 
-  const body = "\uFEFF" + lines.join("\r\n");
+  // Emit the BOM as explicit bytes (EF BB BF) ahead of the UTF-8 CSV. Passing a
+  // string body let the runtime strip/normalise the leading U+FEFF; a byte body
+  // is sent verbatim, so Excel always sees the BOM.
+  const text = lines.join("\r\n");
+  const encoded = new TextEncoder().encode(text);
+  const out = new Uint8Array(3 + encoded.length);
+  out[0] = 0xef;
+  out[1] = 0xbb;
+  out[2] = 0xbf;
+  out.set(encoded, 3);
 
-  return new NextResponse(body, {
+  return new NextResponse(out, {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
