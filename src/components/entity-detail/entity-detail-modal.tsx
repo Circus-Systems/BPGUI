@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useVertical } from "@/hooks/use-vertical";
+import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { EntityTrendChart } from "./entity-trend-chart";
 import { EntityArticlesTable } from "./entity-articles-table";
 
@@ -195,6 +196,16 @@ export function EntityDetailModal({
               {opt.label}
             </button>
           ))}
+          <div className="ml-auto">
+            <ExportCsvButton
+              url={`/api/export/entity-articles?${new URLSearchParams({
+                entity: name,
+                vertical,
+                months: String(months),
+              })}`}
+              disabled={loading || !!error || total === 0}
+            />
+          </div>
         </div>
 
         {/* Body */}

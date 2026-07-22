@@ -4,6 +4,7 @@ import { useVertical } from "@/hooks/use-vertical";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EntityTable } from "@/components/entities/entity-table";
 import { useEntityDetail } from "@/providers/entity-detail-provider";
+import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { VERTICAL_SOURCES, SOURCE_LABELS } from "@/lib/constants";
 
 interface Entity {
@@ -118,6 +119,20 @@ export default function EntitiesPage() {
     fetchEntities(entities.length, true);
   }
 
+  // Full-dataset CSV export mirrors the live filters (minus pagination).
+  const exportParams = new URLSearchParams({
+    vertical,
+    type: entityType,
+    dateRange,
+    source,
+  });
+  if (debouncedSearch) exportParams.set("search", debouncedSearch);
+  if (dateRange === "custom") {
+    if (customFrom) exportParams.set("from", customFrom);
+    if (customTo) exportParams.set("to", customTo);
+  }
+  const exportUrl = `/api/export/entities?${exportParams}`;
+
   return (
     <main className="flex-1 px-4 py-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -167,6 +182,12 @@ export default function EntitiesPage() {
                 </option>
               ))}
             </select>
+            <div className="ml-auto">
+              <ExportCsvButton
+                url={exportUrl}
+                disabled={loading || entities.length === 0}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

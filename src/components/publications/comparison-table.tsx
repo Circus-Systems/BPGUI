@@ -1,7 +1,18 @@
 "use client";
 
 import { SOURCE_LABELS, SOURCE_COLORS } from "@/lib/constants";
-import { formatRelativeTime } from "@/lib/format";
+import { DownloadCsvButton } from "@/components/download-csv-button";
+import { csvFilename } from "@/lib/csv";
+
+const CSV_HEADERS = [
+  "Publication",
+  "Articles",
+  "Per day",
+  "Avg words",
+  "Sponsored %",
+  "Brands covered",
+  "First to story %",
+];
 
 interface PublicationStat {
   source_id: string;
@@ -27,9 +38,27 @@ export function ComparisonTable({
 
   return (
     <div className="rounded-xl border border-border bg-white p-4">
-      <h3 className="text-sm font-medium text-foreground mb-3">
-        Publication Comparison
-      </h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">
+          Publication Comparison
+        </h3>
+        <DownloadCsvButton
+          filename={csvFilename(["publications", "comparison"])}
+          headers={CSV_HEADERS}
+          disabled={stats.length === 0}
+          getRows={() =>
+            stats.map((s) => [
+              SOURCE_LABELS[s.source_id] || s.source_id,
+              s.article_count,
+              s.articles_per_day,
+              s.avg_word_count,
+              Number((s.sponsored_pct * 100).toFixed(1)),
+              s.brands_covered,
+              s.first_pct == null ? null : Number(s.first_pct.toFixed(1)),
+            ])
+          }
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

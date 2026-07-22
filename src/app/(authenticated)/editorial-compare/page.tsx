@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useVertical } from "@/hooks/use-vertical";
+import { ExportCsvButton } from "@/components/export/export-csv-button";
 import { GapsTable, type GapRow } from "@/components/editorial-compare/gaps-table";
 import { SpeedTable, type SpeedRow } from "@/components/editorial-compare/speed-table";
 import {
@@ -208,6 +209,14 @@ export default function EditorialComparePage() {
                 options={GAP_DAY_OPTIONS}
                 value={gapsDays}
                 onChange={setGapsDays}
+              />
+              <ExportCsvButton
+                url={`/api/export/gaps?${new URLSearchParams({
+                  vertical,
+                  days: String(gapsDays),
+                  wire: hideWire ? "exclude" : "include",
+                })}`}
+                disabled={gapsLoading || !!gapsError || gaps.length === 0}
               />
             </div>
           </div>

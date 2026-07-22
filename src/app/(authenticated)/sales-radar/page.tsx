@@ -4,12 +4,46 @@ import { useVertical } from "@/hooks/use-vertical";
 import { useEntityDetail } from "@/providers/entity-detail-provider";
 import { useCallback, useEffect, useState } from "react";
 import { formatNumber, formatDate } from "@/lib/format";
+import { SOURCE_LABELS } from "@/lib/constants";
+import { DownloadCsvButton } from "@/components/download-csv-button";
+import { csvFilename } from "@/lib/csv";
 import {
   RadarTable,
   VerticalBadge,
   SourceChip,
   type RadarColumn,
 } from "@/components/sales-radar/radar-table";
+
+const MOMENTUM_CSV_HEADERS = [
+  "Brand",
+  "Vertical",
+  "Is BPG client",
+  "Last 30d",
+  "Baseline",
+  "Ratio",
+];
+const WHITESPACE_CSV_HEADERS = [
+  "Brand",
+  "Vertical",
+  "Is BPG client",
+  "Competitor articles",
+  "BPG articles",
+];
+const AFFINITY_CSV_HEADERS = [
+  "Brand",
+  "Competitor title",
+  "Vertical",
+  "Is BPG client",
+  "Articles there",
+  "Over-index",
+];
+const EMERGING_CSV_HEADERS = [
+  "Brand",
+  "Vertical",
+  "Is BPG client",
+  "Articles",
+  "First seen",
+];
 
 interface MomentumRow {
   brand: string;
@@ -300,9 +334,31 @@ export default function SalesRadarPage() {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* Momentum */}
               <section className="rounded-xl border border-border bg-white p-4">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Momentum — spiking in the last 30 days
-                </h2>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Momentum — spiking in the last 30 days
+                  </h2>
+                  <DownloadCsvButton
+                    filename={csvFilename([
+                      "sales-radar",
+                      "momentum",
+                      `${days}d`,
+                      vertical,
+                    ])}
+                    headers={MOMENTUM_CSV_HEADERS}
+                    disabled={momentum.length === 0}
+                    getRows={() =>
+                      momentum.map((r) => [
+                        r.brand,
+                        r.vertical,
+                        r.is_bpg_client ? "yes" : "no",
+                        Number(r.recent_30),
+                        Number(r.baseline),
+                        Number(r.ratio),
+                      ])
+                    }
+                  />
+                </div>
                 <p className="mt-0.5 text-xs text-muted">
                   Brands whose coverage over the last 30 days is running well
                   above their normal rate — a timely reason to reach out now.
@@ -320,9 +376,30 @@ export default function SalesRadarPage() {
 
               {/* Whitespace */}
               <section className="rounded-xl border border-border bg-white p-4">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Whitespace — covered by competitors, not by BPG titles
-                </h2>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Whitespace — covered by competitors, not by BPG titles
+                  </h2>
+                  <DownloadCsvButton
+                    filename={csvFilename([
+                      "sales-radar",
+                      "whitespace",
+                      `${days}d`,
+                      vertical,
+                    ])}
+                    headers={WHITESPACE_CSV_HEADERS}
+                    disabled={whitespace.length === 0}
+                    getRows={() =>
+                      whitespace.map((r) => [
+                        r.brand,
+                        r.vertical,
+                        r.is_bpg_client ? "yes" : "no",
+                        Number(r.competitor_articles),
+                        Number(r.bpg_articles),
+                      ])
+                    }
+                  />
+                </div>
                 <p className="mt-0.5 text-xs text-muted">
                   Brands that competitor titles are writing about but no BPG
                   publication has touched — open ground to pitch.
@@ -340,9 +417,31 @@ export default function SalesRadarPage() {
 
               {/* Competitor affinity */}
               <section className="rounded-xl border border-border bg-white p-4">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Competitor affinity — over-indexed on one competitor title
-                </h2>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Competitor affinity — over-indexed on one competitor title
+                  </h2>
+                  <DownloadCsvButton
+                    filename={csvFilename([
+                      "sales-radar",
+                      "affinity",
+                      `${days}d`,
+                      vertical,
+                    ])}
+                    headers={AFFINITY_CSV_HEADERS}
+                    disabled={affinity.length === 0}
+                    getRows={() =>
+                      affinity.map((r) => [
+                        r.brand,
+                        SOURCE_LABELS[r.competitor_source] || r.competitor_source,
+                        r.vertical,
+                        r.is_bpg_client ? "yes" : "no",
+                        Number(r.source_articles),
+                        Number(r.over_index),
+                      ])
+                    }
+                  />
+                </div>
                 <p className="mt-0.5 text-xs text-muted">
                   Brands that lean heavily toward a single competitor title,
                   where a rival currently owns the editorial relationship.
@@ -363,9 +462,30 @@ export default function SalesRadarPage() {
 
               {/* Emerging */}
               <section className="rounded-xl border border-border bg-white p-4">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Emerging — first seen in the last 90 days
-                </h2>
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Emerging — first seen in the last 90 days
+                  </h2>
+                  <DownloadCsvButton
+                    filename={csvFilename([
+                      "sales-radar",
+                      "emerging",
+                      `${days}d`,
+                      vertical,
+                    ])}
+                    headers={EMERGING_CSV_HEADERS}
+                    disabled={emerging.length === 0}
+                    getRows={() =>
+                      emerging.map((r) => [
+                        r.brand,
+                        r.vertical,
+                        r.is_bpg_client ? "yes" : "no",
+                        Number(r.recent_articles),
+                        r.first_seen ? formatDate(r.first_seen) : null,
+                      ])
+                    }
+                  />
+                </div>
                 <p className="mt-0.5 text-xs text-muted">
                   New names that entered coverage for the first time in the last
                   90 days — fresh brands worth an early conversation.
